@@ -251,7 +251,7 @@ write.csv(target.complete, "lab.target.csv", row.names=FALSE)
 
 #================================control group==================================
 # control group - hl, no bc w/in 24 hr period; no hl, bc w/in 24 hr period; neither hl or bc w/in 24 hr period
-control.group <- complete[!complete$id %in% severe.sepsis.id, ]
+control.group <- complete[!complete$id %in% hl.bc, ]
 
 library(plyr)
 control.group <- control.group[order(control.group$id, control.group$charttime),]
@@ -264,17 +264,18 @@ control.group$charttime <- ymd_hms(control.group$charttime)
 start.time <- ddply(control.group, "id", summarise, min(charttime))
 end.time <- ddply(control.group, "id", summarise, max(charttime))
 
-start.time2 <- start.time[,2]+10800 # 43200 seconds = 12 hours;
-end.time2 <- end.time[,2]-10800
-
-
-pool <- data.frame(start.time[,1], start.time2, end.time2)
+# start.time2 <- start.time[,2]+10800 # 43200 seconds = 12 hours;
+# end.time2 <- end.time[,2]-10800
+# 
+# 
+# pool <- data.frame(start.time[,1], start.time2, end.time2)
+pool <- data.frame(start.time[,1], start.time[,2], end.time[,2])
 names(pool) <- c("id", "start.time", "end.time")
 pool <- pool[!(is.na(pool$start.time) | is.na(pool$end.time)),]  
 
 pool$diff <- pool$end.time - pool$start.time
 set.seed(12345)
-random.time <- sapply(1:nrow(pool), function(i) runif(1, 0, max = pool[i,4]))
+random.time <- sapply(1:nrow(pool), function(i) runif(1, 0, max = pool[i, 4]))
 pool$middle.time <- pool$start.time+as.period(random.time,unit="seconds")
 head(pool)
 
@@ -289,67 +290,266 @@ substr( pool$middle.time , 18, 19 ) <- seconds
 pool$middle.time <- as.POSIXct( pool$middle.time,format="%Y-%m-%d %H:%M:%S")
 head( pool)
 
-pool$left.time <- pool$middle.time - 10800
-pool$right.time <- pool$middle.time + 10800
+
+pool$left.time0 <- pool$middle.time - 10800*2
+pool$left.time <- apply(pool[,c(2,6)], 1, max)
+pool$right.time <- pool$middle.time #time of event
+pool$left.time <- as.POSIXct(pool$left.time,format="%Y-%m-%d %H:%M:%S")
+
 
 head(pool)
 write.csv(pool, "pool.csv")
 
-pool2 <- pool[,c(1,5)]
-head(pool2)
-write.csv(pool2, "pool2.csv")
+# pool2 <- pool[,c(1,5)]
+# head(pool2)
+# write.csv(pool2, "pool2.csv")
 
 # Format control group and include time0
-control <- pool2
-control$middle.time <- ymd_hms(control$middle.time)
-control$time0 <- rep(1, nrow(control))
-control$hospital_seq <- rep(NA, nrow(control))
-control$itemid <- rep(NA, nrow(control))
-control$valuenum <- rep(NA, nrow(control))
-control$comorb <- rep(NA, nrow(control))
-control$X <- NULL
+control <- pool
+control.group$charttime <- as.POSIXct(control.group$charttime,format="%Y-%m-%d %H:%M:%S")
+control.group.2 <- control.group[!is.na(control.group$charttime),]
+control.group.2$charttime <- as.character(control.group.2$charttime)
+write.csv(control.group.2$charttime, 'control.group.charttime2.csv')
 
-names(control)[names(control)=="middle.time"] <- "charttime"
-control$charttime <- ymd_hms(control$charttime)
-control$Blood_Culture <- rep(NA, nrow(control)) 
-control$High_Lactate <- rep(NA, nrow(control)) 
-control$Severe_Sepsis <- rep(NA, nrow(control)) 
+halfhours1 <- read.csv("halfhours_control_group_charttime.csv", header = F)
+control.group.2$HALFHOUR <- as.vector(unlist(halfhours1))
 
-# Control group lab events and bld cultures events
-control.group$time0 <- rep(0, nrow(control.group))
-control.event.time <- rbind(control, control.group)
-control.event.time.2 <- control.event.time[!is.na(control.event.time$charttime),]      # Remove NA values
-length(unique(control.event.time.2$id))
+# control.lab.2 <- control.lab[!is.na(control.lab$charttime) | control.lab$charttime =='NA',]
+# control.lab.2$charttime <- as.character(control.lab.2$charttime)
+# write.csv(control.lab.2$charttime, 'control_lab_charttime2.csv')
+# halfhours1 <- read.csv("halfhours_control_lab_charttime.csv", header = F)
+# control.lab.2$HALFHOUR <- as.vector(unlist(halfhours1))
+# severe.sepsis.all <- severe.sepsis.all[!is.na(severe.sepsis.all$HALFHOUR),]
+meanvalues <-aggregate(control.group.2$valuenum, by=list(control.group.2$id, control.group.2$itemid, control.group.2$HALFHOUR), 
+                       FUN=mean, na.rm=TRUE)
+names(meanvalues) <- c('id', 'itemid', 'halfhours', 'meanvalue')
 
-control.intervals <- ddply(control.event.time.2, .(id), z.2) 
+control.lab <- merge(meanvalues, control, by.x = 'id', by.y = 'id', all.x = T)
 
+names(control.lab)
+f.1 <- function (x) {
+  if (!is.na(x[3]) & !is.na(x[10]) & !is.na(x[11]) & (x[3] >= x[10]) & (x[3] < x[11])) {
+    t <- 1
+  }
+  else
+  {
+    t <- 0
+  }
+}
+
+control.lab$includerow <- apply(control.lab, 1, f.1)
+head(control.lab)  
 # lab control
-
-lab.control <- control.intervals[control.intervals$Interval < 0,]
-write.csv(lab.control, "lab.control.csv", row.names=FALSE)
+lab.control <- control.lab[control.lab$includerow > 0,]
+write.csv(lab.control, "lab.control_6hrs.csv", row.names=FALSE)
 
 
 ## Chart events for control group
 
 chart1.cg <- chart1[(chart1$id %in% control$id),]
-chart1.cg$time0 <- rep(0, nrow(chart1.cg))
+# chart1.cg$time0 <- rep(0, nrow(chart1.cg))
 chart1.cg$subject_id <- NULL
 chart1.cg$icustay_id <- NULL
 chart1.cg$icustay_seq <- NULL
 
-names(chart1.cg) <- c("charttime", 'ITEMID', "MEANVALUE1", "STDVALUE1", 'HSEQ', "ID", "COMORB", "time0")
-control2 <- data.frame(control$HALFHOUR, control$ITEMID, control$MEANVALUE, control$STDVALUE, control$HSEQ, control$ID, control$COMORB, control$time0)
-names(control2) <- c("HALFHOUR", 'ITEMID', "MEANVALUE1", "STDVALUE1", 'HSEQ', "ID", "COMORB", "time0")
-chart1.cg.time <- rbind(control2, chart1.cg)
-chart1.cg.time.2 <- chart1.cg.time[!is.na(chart1.cg.time$HALFHOUR),]       # Remove NA values
-chart.cg.intervals <- ddply(chart1.cg.time.2, .(ID), z.2) 
+names(chart1.cg) <- c("charttime","itemid","valuenum","hospital_seq", "comorb" ,"id")
+control2 <- data.frame(chart1.cg$charttime, chart1.cg$itemid, chart1.cg$valuenum, chart1.cg$hospital_seq, chart1.cg$id)
+names(control2) <- c("charttime","itemid","valuenum","hospital_seq", "id")
 
+control2$charttime <- as.POSIXct(control2$charttime,format="%Y-%m-%d %H:%M:%S")
+control.2 <- control2[!is.na(control2$charttime),]
+control.2$charttime <- as.character(control.2$charttime)
+write.csv(control.2$charttime, 'control.charttime2.csv')
+
+halfhours2 <- read.csv("halfhours_control_charttime.csv", header = F)
+control.2$HALFHOUR <- as.vector(unlist(halfhours2))
+
+# control.lab.2 <- control.lab[!is.na(control.lab$charttime) | control.lab$charttime =='NA',]
+# control.lab.2$charttime <- as.character(control.lab.2$charttime)
+# write.csv(control.lab.2$charttime, 'control_lab_charttime2.csv')
+# halfhours1 <- read.csv("halfhours_control_lab_charttime.csv", header = F)
+# control.lab.2$HALFHOUR <- as.vector(unlist(halfhours1))
+# severe.sepsis.all <- severe.sepsis.all[!is.na(severe.sepsis.all$HALFHOUR),]
+meanvalues.vitals <-aggregate(control.2$valuenum, by=list(control.2$id, control.2$itemid, control.2$HALFHOUR), 
+                       FUN=mean, na.rm=TRUE)
+names(meanvalues.vitals) <- c('id', 'itemid', 'halfhours', 'meanvalue')
+
+control.vitals <- merge(meanvalues.vitals, control, by.x = 'id', by.y = 'id', all.x = T)
+control.vitals$includerow <- apply(control.vitals, 1, f.1)
+head(control.vitals)  
+# lab control
+vitals.control <- control.vitals[control.vitals$includerow > 0,]
 # chart control
+write.csv(vitals.control, "vitals.control_6hrs.csv", row.names=FALSE)
 
-chart.control <- chart.cg.intervals[chart.cg.intervals$Interval < 0,]
-write.csv(chart.control, "chart.control.csv", row.names=FALSE)
+#To do:
+#1. to aggregrate target group data into halfhours
+#2. to merge comborbidity and hospital_seq data
+#3. get ready for prediction models
+
+chart.target <- read.csv("chart.target.csv", header=T)
+chart.target$charttime <- as.POSIXct(chart.target$charttime,format="%Y-%m-%d %H:%M:%S")
+chart.target.2 <- chart.target[!is.na(chart.target$charttime),]
+chart.target.2$charttime <- as.character(chart.target.2$charttime)
+write.csv(chart.target.2$charttime, 'target.charttime2.csv')
+
+halfhours3 <- read.csv("halfhours_target_charttime.csv", header = F)
+chart.target.2$HALFHOUR <- as.vector(unlist(halfhours3))
+
+meanvalues.vitals.target <-aggregate(chart.target.2$valuenum, by=list(chart.target.2$id, chart.target.2$itemid, chart.target.2$HALFHOUR), 
+                              FUN=mean, na.rm=TRUE)
+names(meanvalues.vitals.target) <- c('id', 'itemid', 'halfhours', 'meanvalue')
+write.csv(meanvalues.vitals.target, "meanvalues.vitals.target_6hrs.csv", row.names=FALSE)
+
+#===============lab.target to aggregate to halfhours data=============================
+lab.target <- read.csv("lab.target.csv", header=T)
+lab.target$charttime <- as.POSIXct(lab.target$charttime,format="%Y-%m-%d %H:%M:%S")
+lab.target.2 <- lab.target[!is.na(lab.target$charttime),]
+lab.target.2$charttime <- as.character(lab.target.2$charttime)
+write.csv(lab.target.2$charttime, 'lab.target.charttime2.csv')
+
+halfhours4 <- read.csv("halfhours_lab_target_charttime.csv", header = F)
+lab.target.2$HALFHOUR <- as.vector(unlist(halfhours4))
+
+meanvalues.lab.target <-aggregate(lab.target.2$valuenum, by=list(lab.target.2$id, lab.target.2$itemid, lab.target.2$HALFHOUR), 
+                                     FUN=mean, na.rm=TRUE)
+names(meanvalues.lab.target) <- c('id', 'itemid', 'halfhours', 'meanvalue')
+write.csv(meanvalues.lab.target, "meanvalues.lab.target_6hrs.csv", row.names=FALSE)
+
+length(unique(meanvalues.lab.target$id)) #1,128
+length(unique(meanvalues.vitals.target$id)) #597
 
 
+#============================merge datasets to get control and target group==============
+# Import Data ----------------
+lab.target <- read.csv("meanvalues.lab.target_6hrs.csv", header = T)
+chart.control <- read.csv("vitals.control_6hrs.csv", header = T)
+chart.target <- read.csv("meanvalues.vitals.target_6hrs.csv", header = T)
+lab.control <- read.csv("lab.control_6hrs.csv", header = T)
+
+names(lab.target)
+names(lab.control)
+names(chart.target)
+names(chart.control)
+
+
+lab.control.2 <- lab.control[,c(1:4)]
+chart.control.2 <- chart.control[,c(1:4)]
+
+controldata <- rbind(lab.control.2, chart.control.2)
+controldata$Response <- rep(0, nrow(controldata))
+targetdata <- rbind(lab.target, chart.target)
+targetdata$Response <- rep(1, nrow(targetdata))
+length(unique(controldata$id))
+length(unique(targetdata$id))
+write.csv(controldata, 'controldata_6hrs.csv')
+write.csv(targetdata, 'targetdata_6hrs.csv')
+data.all <- rbind(targetdata, controldata)
+write.csv(data.all, 'alldata_6hrs.csv')
+
+#=================Capping the data===============================
+data0 <- data.all
+# Convert to percentiles
+bounds = function(x, lower.bound, upper.bound)
+{
+  check.lower <- x < lower.bound
+  check.upper <- x > upper.bound
+  x[check.lower] <- lower.bound
+  x[check.upper] <- upper.bound
+  return (x)
+}
+
+dropped.variables <- as.list(c(50009, 50025, 50006, 50419, 50395, 50184, 50429, 50399, 50012, 50316, 677))
+data00 <- data0[!(data0$itemid %in% dropped.variables),]
+
+percentile = function(parameter){
+  w <- data00[data00$itemid==parameter,]
+  lower.bound = quantile(w$meanvalue, c(.01), na.rm=TRUE)
+  upper.bound = quantile(w$meanvalue, c(.99), na.rm=TRUE)
+  w$meanvalue <- bounds(w$meanvalue, lower.bound, upper.bound)
+  return (w)          
+}
+
+
+data00 <- data00[!is.na(data00$itemid),]
+GCS <- data00[data00$itemid==198 & !(is.na(data00$itemid)),]
+
+data00.capped <- rbind(GCS,percentile(211),percentile(455),percentile(618),
+                       percentile(646),percentile(678),percentile(733),percentile(763),
+                       percentile(4552),percentile(50002),percentile(50007),percentile(50010),
+                       percentile(50013),percentile(50015),percentile(50016),percentile(50018),
+                       percentile(50019),percentile(50060),percentile(50061),percentile(50062),
+                       percentile(50068),percentile(50073),percentile(50079),percentile(50090),
+                       percentile(50091),percentile(50112),percentile(50122),percentile(50140),
+                       percentile(50148),percentile(50149),percentile(50159),percentile(50170),
+                       percentile(50171),percentile(50172),percentile(50177),percentile(50188),
+                       percentile(50383),percentile(50386),percentile(50428),percentile(50439),
+                       percentile(50440),percentile(50451),percentile(50468))
+
+data00.capped <- data00.capped[order(data00.capped$id, data00.capped$halfhours),]
+
+write.csv(data00.capped, "data.capped.csv", row.names=FALSE)
+
+#=================
+data00.capped <- read.csv('data.capped.csv', header = T)
+
+controldata <- read.csv("controldata_6hrs.csv", header = T)
+targetdata <- read.csv("targetdata_6hrs.csv", header = T)
+
+table(data00.capped$Response)
+
+# Laboratory Values
+
+# Selected variables for labs (excludes any obtained from blood gas)
+lab.id <- c(50060,50061,50068,50062,50073,50172,50177,50079,
+            50090,50091,50013,50112,50386,50383,50140,
+            50148,50428,50468,50122,50188)
+data1.labs <- data00.capped[data00.capped$itemid %in% lab.id,]
+
+# Derive features for each variable: median, standard deviation, minimum, maximum
+labs.1 <- ddply(data1.labs, .(id, itemid), 
+                function(x){y = data.frame(x$id[1],x$itemid[1],
+                                           median(x$meanvalue, na.rm=T),
+                                           sd(x$meanvalue, na.rm=T),
+                                           min(x$meanvalue, na.rm=T),
+                                           max(x$meanvalue, na.rm=T)
+                );
+                names(y)= c("id", "itemid", "median", "std", "min", "max");
+                return(y)})
+# convert infinity to NA
+labs.1 <- do.call(data.frame,lapply(labs.1, function(x) replace(x, is.infinite(x),NA)))
+
+# transform to wide format
+# Here you can add more features if you want. Just need to rename those variables before merging
+data.wide.median.l1 <- dcast(labs.1, id~itemid, value.var= "MEDIAN")
+data.wide.std.l1 <- dcast(labs.1, id~itemid, value.var= "STD")
+data.wide.min.l1 <- dcast(labs.1, id~itemid, value.var= "MIN")
+data.wide.max.l1 <- dcast(labs.1, id~itemid, value.var= "MAX")
+names(data.wide.median.l1) <- paste(names(data.wide.median.l1), "MEDIAN", sep=".")
+names(data.wide.std.l1) <- paste(names(data.wide.std.l1), "STD", sep=".")
+names(data.wide.min.l1) <- paste(names(data.wide.min.l1), "MIN", sep=".")
+names(data.wide.max.l1) <- paste(names(data.wide.max.l1), "MAX", sep=".")
+
+# Merge data frames. remove subject ID columns except the first one
+data.wide.l1 <- data.frame(data.wide.median.l1, data.wide.std.l1[,-1], data.wide.min.l1[,-1],data.wide.max.l1[,-1], check.names=F)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#==============================others========================================
+for (i in 1:nrow(severe.sepsis.all))
+  if (!is.na(severe.sepsis.all$spec_itemid[i]))
+    severe.sepsis.all$itemid[i] <-severe.sepsis.all$spec_itemid[i]
 
 # Aggregate data (item) by HALFHOUR
 write.csv(severe.sepsis.all, 'severe_sepsis_all.csv')
@@ -364,3 +564,5 @@ meanvalues <-aggregate(severe.sepsis.all$valuenum, by=list(severe.sepsis.all$id,
                        FUN=mean, na.rm=TRUE)
 
 names(meanvalues) <- c('id', 'itemid', 'halfhours', 'meanvalue')
+
+
