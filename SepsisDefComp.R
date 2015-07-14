@@ -56,9 +56,6 @@ bc <- bldcultures$id[!duplicated(bldcultures$id) & !is.na(bldcultures$id)]     #
 hl.bc <- intersect(hl, bc)  #2,024
 # hl.bc <- as.list(hl.bc)
 
-
-
-
 possible.sepsis <- complete[(complete$id %in% hl.bc),] 
 
 reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
@@ -100,7 +97,6 @@ z.0 <- function(complete){
 }
 
 
-
 library(plyr)
 ## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
 data1 <- ddply(reduced.sepsis1, .(id), z.0) 
@@ -108,7 +104,7 @@ data1 <- ddply(reduced.sepsis1, .(id), z.0)
 severe.sepsis.observations <- data1[data1$Severe_Sepsis==1,]
 severe.sepsis.pt <- severe.sepsis.observations[!duplicated(severe.sepsis.observations$id),1]
 
-## Count number of patients classified with severe.sepsis: 1,123
+## Count number of patients classified with severe.sepsis: 1,143
 length(severe.sepsis.pt)
 
 ## Create new data set with patients who have severe sepsis
@@ -143,6 +139,104 @@ additional.ss <- data.2[(data.2$id %in% additional.ss.index),]
 severe.sepsis.all <- rbind(severe.sepsis, additional.ss)                  # Combine with 'severe.sepsis' which is the first dataset that originally excluded the second group
 length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #1,353 patients
 severe.sepsis.id <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]
+
+
+#===========================decrease the lactate values===========================
+highlactates <- lactates[lactates$valuenum >= 2.5,] 
+
+hl <- highlactates$id[!duplicated(highlactates$id) & !is.na(highlactates$id)]            # Identify individuals with a high lactate
+#2740 patients
+
+bldcultures <- complete[!is.na(complete$spec_itemid),] 
+bc <- bldcultures$id[!duplicated(bldcultures$id) & !is.na(bldcultures$id)]     # Identify patients with a blood culture taken (12,845)
+
+## From 'complete' data set, select only patients who have high lactate and blood culture
+hl.bc <- intersect(hl, bc)  #3,767; 3,801
+# hl.bc <- as.list(hl.bc)
+
+# 
+possible.sepsis <- complete[(complete$id %in% hl.bc),] 
+reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
+# Identify patients in 'possible.sepsis' data set who have missing chart times for blood culture
+# Try this command if the one right below does not work
+bc.missing <- possible.sepsis[is.na(possible.sepsis$charttime) & !is.na(possible.sepsis$spec_itemid),]      
+bc.missing.patients <- bc.missing[!duplicated(bc.missing$id),1] #741 pts
+
+## Create reduced subset of 'complete' that excludes patients without chart time for blood culture
+reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
+
+# Count how many patients in 'reduced.sepsis' : 
+length(reduced.sepsis$id[!duplicated(reduced.sepsis$id)]) #3,026; 3,060
+reduced.sepsis1 <- reduced.sepsis[reduced.sepsis$itemid ==50010 | !is.na(reduced.sepsis$spec_itemid),]
+### Function for above code 
+z.1 <- function(complete){
+  #complete <- data[data$Sid==patient,]
+  ## Identify rows with blood culture taken
+  for (i in 1:nrow(complete))
+    if (!is.na(complete$spec_itemid[i]))
+      complete$Blood_Culture[i] <- 1 
+    ## Identify rows with high lactate
+    for (i in 1:nrow(complete))
+      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & complete$itemid[i] == 50010 & complete$valuenum[i] >=2.5)
+        complete$High_Lactate[i] <- 1
+      ## Identify rows with severe sepsis
+      # Empty list for chart times for blood culture
+      time.bc <- c()
+      # Get chart times for blood culture
+      for (i in 1:nrow(complete)) 
+        if (complete$Blood_Culture[i] == 1)
+          time.bc <- c(complete$charttime[i], time.bc)
+      time.bc <- rev(time.bc)
+      # Assign severe sepsis to rows with high lactate that occur within 24 hours of a blood culture
+      for (i in 1:nrow(complete))
+        if (complete$High_Lactate[i] == 1 & min(abs(difftime(time.bc, complete$charttime[i], units="hours"))) < 24)
+          complete$Severe_Sepsis[i] <- 1
+      return(complete)
+}
+
+
+library(plyr)
+## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
+data1 <- ddply(reduced.sepsis1, .(id), z.1) 
+## Identify patients from 'data1' who have severe sepsis
+severe.sepsis.observations <- data1[data1$Severe_Sepsis==1,]
+severe.sepsis.pt <- severe.sepsis.observations[!duplicated(severe.sepsis.observations$id),1]
+
+## Count number of patients classified with severe.sepsis: 2,166; 2,204
+length(severe.sepsis.pt)
+
+## Create new data set with patients who have severe sepsis
+severe.sepsis <- data1[data1$id %in% severe.sepsis.pt,]
+
+bc.missing.sepsis.1 <- possible.sepsis[(possible.sepsis$id %in% bc.missing.patients),]
+# Subset of blood culture with time (excludes blood culture without time)
+bc.missing.sepsis.2 <- bc.missing.sepsis.1[!(is.na(bc.missing.sepsis.1$spec_itemid)) & !(is.na(bc.missing.sepsis.1$charttime)),]
+
+## Identify patients who have at least one blood culture with a chart time: 691
+bc.patients.0 <- bc.missing.sepsis.2[!duplicated(bc.missing.sepsis.2$id),1]
+
+## Subset of data for patients who have at least one blood culture with a chart time
+bc.missing.sepsis.3 <- bc.missing.sepsis.1[bc.missing.sepsis.1$id %in% bc.patients.0,]
+# Choose only values with chart time
+bc.missing.sepsis.4 <- bc.missing.sepsis.3[!is.na(bc.missing.sepsis.3$charttime),]
+
+## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
+bc.missing.sepsis.5 <- bc.missing.sepsis.4[!is.na(bc.missing.sepsis.4$spec_itemid) | bc.missing.sepsis.4$itemid==50010,]
+data.2 <- ddply(bc.missing.sepsis.5, .(id), z.1) 
+
+## Identify first instance of high lactate for each patient (from 'data.2' - patients previously excluded)
+hl.subset.0 <- data.2[data.2$High_Lactate==1,]                         # Returns all instances of high lactate
+hl.subset.1 <- hl.subset.0[!duplicated(hl.subset.0$id),]
+
+## Identify patients whose first high lactate is also a severe sepsis event
+hl.subset.2 <- hl.subset.1[hl.subset.1$Severe_Sepsis==1,]
+additional.ss.index <- hl.subset.2[!duplicated(hl.subset.2$id), 1] #230 patients
+
+## If a patient's first high lactate was also a severe sepsis event, add that patients data to the Severe Sepsis group
+additional.ss <- data.2[(data.2$id %in% additional.ss.index),]
+severe.sepsis.all <- rbind(severe.sepsis, additional.ss)                  # Combine with 'severe.sepsis' which is the first dataset that originally excluded the second group
+length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #1,353 patients
+severe.sepsis.id2 <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)] #2,396
 
 
 # #================patients with infections and organ dysfunction==================================
@@ -196,7 +290,7 @@ infectdysfun2.id <- intersect(infect.id, dysfunc2.id) #9,550
  
 
 # Patients with severe sepsis by our definition-------
-hlbc.sp.id <- severe.sepsis.pt #1,123
+hlbc.sp.id <- severe.sepsis.pt #1,143
 
 
 charts$id <- paste(charts$subject_id, charts$hospseq, charts$icustay_seq,sep='#%#') 
@@ -207,22 +301,22 @@ resp.pco2.id <- union(resp.rate.id, pco2.id) #21,192
 wbc.id <- unique(complete$id[complete$itemid==50316 & (complete$valuenum > 12 | complete$valuenum < 4)]) #55
 temp.id <- unique(charts$id[charts$itemid==678 & (charts$value1num > 100.4 | charts$value1num < 96.8)]) #15,023
 heart.temp.id <- intersect(heart.rate.id, temp.id) #13,394
-temp.resp.pco2.id <- intersect(resp.pco2.id, temp.id) #14,713
+temp.resp.pco2.id <- intersect(resp.pco2.id, temp.id) #14,713; 14,757
 temp.wbc.id <- intersect(wbc.id, temp.id) #43
 heart.resp.pco2.id <- intersect(heart.rate.id, resp.pco2.id) #17,630
 heart.wbc.id <- intersect(heart.rate.id, wbc.id) #46
 resp.pco2.wbc.id <- intersect(resp.pco2.id, wbc.id) #50
-u1 <- union(heart.temp.id, temp.resp.pco2.id) #14,922
+u1 <- union(heart.temp.id, temp.resp.pco2.id) #14,922; 14,930
 u2 <- union(temp.wbc.id, heart.resp.pco2.id) #17,630
 u3 <- union(heart.wbc.id, resp.pco2.wbc.id) #50
-u4 <- union(u1, u2) #19,331
-u5 <- union(u3, u4) #19,335
+u4 <- union(u1, u2) #19,331; 19,339
+u5 <- union(u3, u4) #19,335; 19,343
 
-sirs.id <- u5 #19,335
+sirs.id <- u5 #19,335; 19,343
 
-sirs.infectdysfun.id <- intersect(sirs.id, infectdysfun.id) #4,272 patients visits
+sirs.infectdysfun.id <- intersect(sirs.id, infectdysfun.id) #4,272 patients visits; 4,273
 
-sirs.infectdysfun2.id <- intersect(sirs.id, infectdysfun2.id) #7,310 patients visits
+sirs.infectdysfun2.id <- intersect(sirs.id, infectdysfun2.id) #7,310 patients visits; 7,311
 
 
 #Compare differet defitions of severe sepsis
@@ -231,7 +325,7 @@ sirs.infectdysfun2.id <- intersect(sirs.id, infectdysfun2.id) #7,310 patients vi
 # dd3: 2/4sirs +infection + organ dysfunction (by icd9)
 # df4: infection + organ dysfunction1 (by sofa+cardiovascular failure)
 # dd5: 2/4sirs +infection + organ dysfunction (by sofa+cardiovascular failure)
-df1 <- severe.sepsis.id #1,353
+df1 <- severe.sepsis.id #1,353; 1,373
 df2 <- infectdysfun.id #5,739
 df3 <- sirs.infectdysfun.id #4,272
 df4 <- infectdysfun2.id #9,550
@@ -421,103 +515,7 @@ HIVid.ndf6 <-setdiff(HIVid, df6) #407
 HIVid.df6 <-intersect(HIVid, df6) #48
 df6.nHIVid  <- setdiff(df6, HIVid) #1,075
 
-#===========================decrease the lactate values===========================
-highlactates <- lactates[lactates$valuenum >= 2.5,] 
 
-hl <- highlactates$id[!duplicated(highlactates$id) & !is.na(highlactates$id)]            # Identify individuals with a high lactate
-#2740 patients
-
-bldcultures <- complete[!is.na(complete$spec_itemid),] 
-bc <- bldcultures$id[!duplicated(bldcultures$id) & !is.na(bldcultures$id)]     # Identify patients with a blood culture taken (12,845)
-
-## From 'complete' data set, select only patients who have high lactate and blood culture
-hl.bc <- intersect(hl, bc)  #3,767
-# hl.bc <- as.list(hl.bc)
-
-# 
-possible.sepsis <- complete[(complete$id %in% hl.bc),] 
-reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
-# Identify patients in 'possible.sepsis' data set who have missing chart times for blood culture
-      # Try this command if the one right below does not work
-bc.missing <- possible.sepsis[is.na(possible.sepsis$charttime) & !is.na(possible.sepsis$spec_itemid),]      
-bc.missing.patients <- bc.missing[!duplicated(bc.missing$id),1] #417 pts
-
-## Create reduced subset of 'complete' that excludes patients without chart time for blood culture
-reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
-
-# Count how many patients in 'reduced.sepsis' : 
-length(reduced.sepsis$id[!duplicated(reduced.sepsis$id)]) #3,026
-reduced.sepsis1 <- reduced.sepsis[reduced.sepsis$itemid ==50010 | !is.na(reduced.sepsis$spec_itemid),]
-### Function for above code 
-z.1 <- function(complete){
-  #complete <- data[data$Sid==patient,]
-  ## Identify rows with blood culture taken
-  for (i in 1:nrow(complete))
-    if (!is.na(complete$spec_itemid[i]))
-      complete$Blood_Culture[i] <- 1 
-    ## Identify rows with high lactate
-    for (i in 1:nrow(complete))
-      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & complete$itemid[i] == 50010 & complete$valuenum[i] >=2.5)
-        complete$High_Lactate[i] <- 1
-      ## Identify rows with severe sepsis
-      # Empty list for chart times for blood culture
-      time.bc <- c()
-      # Get chart times for blood culture
-      for (i in 1:nrow(complete)) 
-        if (complete$Blood_Culture[i] == 1)
-          time.bc <- c(complete$charttime[i], time.bc)
-      time.bc <- rev(time.bc)
-      # Assign severe sepsis to rows with high lactate that occur within 24 hours of a blood culture
-      for (i in 1:nrow(complete))
-        if (complete$High_Lactate[i] == 1 & min(abs(difftime(time.bc, complete$charttime[i], units="hours"))) < 24)
-          complete$Severe_Sepsis[i] <- 1
-      return(complete)
-}
-
-
-
-library(plyr)
-## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
-data1 <- ddply(reduced.sepsis1, .(id), z.1) 
-## Identify patients from 'data1' who have severe sepsis
-severe.sepsis.observations <- data1[data1$Severe_Sepsis==1,]
-severe.sepsis.pt <- severe.sepsis.observations[!duplicated(severe.sepsis.observations$id),1]
-
-## Count number of patients classified with severe.sepsis: 2,166
-length(severe.sepsis.pt)
-
-## Create new data set with patients who have severe sepsis
-severe.sepsis <- data1[data1$id %in% severe.sepsis.pt,]
-
-bc.missing.sepsis.1 <- possible.sepsis[(possible.sepsis$id %in% bc.missing.patients),]
-# Subset of blood culture with time (excludes blood culture without time)
-bc.missing.sepsis.2 <- bc.missing.sepsis.1[!(is.na(bc.missing.sepsis.1$spec_itemid)) & !(is.na(bc.missing.sepsis.1$charttime)),]
-
-## Identify patients who have at least one blood culture with a chart time: 395
-bc.patients.0 <- bc.missing.sepsis.2[!duplicated(bc.missing.sepsis.2$id),1]
-
-## Subset of data for patients who have at least one blood culture with a chart time
-bc.missing.sepsis.3 <- bc.missing.sepsis.1[bc.missing.sepsis.1$id %in% bc.patients.0,]
-# Choose only values with chart time
-bc.missing.sepsis.4 <- bc.missing.sepsis.3[!is.na(bc.missing.sepsis.3$charttime),]
-
-## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
-bc.missing.sepsis.5 <- bc.missing.sepsis.4[!is.na(bc.missing.sepsis.4$spec_itemid) | bc.missing.sepsis.4$itemid==50010,]
-data.2 <- ddply(bc.missing.sepsis.5, .(id), z.0) 
-
-## Identify first instance of high lactate for each patient (from 'data.2' - patients previously excluded)
-hl.subset.0 <- data.2[data.2$High_Lactate==1,]                         # Returns all instances of high lactate
-hl.subset.1 <- hl.subset.0[!duplicated(hl.subset.0$id),]
-
-## Identify patients whose first high lactate is also a severe sepsis event
-hl.subset.2 <- hl.subset.1[hl.subset.1$Severe_Sepsis==1,]
-additional.ss.index <- hl.subset.2[!duplicated(hl.subset.2$id), 1] #230 patients
-
-## If a patient's first high lactate was also a severe sepsis event, add that patients data to the Severe Sepsis group
-additional.ss <- data.2[(data.2$id %in% additional.ss.index),]
-severe.sepsis.all <- rbind(severe.sepsis, additional.ss)                  # Combine with 'severe.sepsis' which is the first dataset that originally excluded the second group
-length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #1,353 patients
-severe.sepsis.id2 <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)] #2,396
 
 
 
