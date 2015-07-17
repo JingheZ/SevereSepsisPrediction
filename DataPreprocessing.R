@@ -3,7 +3,7 @@
 #Read lab, bld culture, and vital signs data
 lab <- read.csv("pts_lab_new.csv", header=TRUE)
 bld<- read.csv("pts_bldcultures3_new.csv", header=TRUE)
-charts <- read.csv('pts_vitals_new.csv')
+charts <- read.csv('pts_vitals1b_new.csv')
 
 #get the icuseq info for bld culture
 icuseqs <- read.csv('icuseqs_blds.csv',header = F)
@@ -28,16 +28,40 @@ lab$id <- paste(lab$subject_id, lab$hospital_seq, lab$icustay_seq, sep='#%#')
 charts$id <- paste(charts$subject_id, charts$hospseq, charts$icustay_seq, sep='#%#')
 
 
-bld1 <- data.frame(bld$id, bld$charttime, bld$spec_itemid, bld$hospital_seq, bld$comorb)
+bld1 <- data.frame(bld$id, bld$charttime, bld$spec_itemid)
 bld1$valuenum <- rep(NA, nrow(bld1))
-names(bld1) <- c('id', 'charttime', 'itemid', 'hospital_seq', 'comorb', 'valuenum')
+names(bld1) <- c('id', 'charttime', 'itemid', 'valuenum')
 
-lab1 <- data.frame(lab$id, lab$charttime, lab$hospital_seq, lab$itemid, lab$valuenum, lab$comorb)
-names(lab1) <- c('id', 'charttime', 'hospital_seq', 'itemid', 'valuenum', 'comorb')
+lab1 <- data.frame(lab$id, lab$charttime, lab$itemid, lab$valuenum)
+names(lab1) <- c('id', 'charttime', 'itemid', 'valuenum')
 
+bp.value2 <- charts[charts$itemid == 455,]
+bp.value2[,c(6)] <- bp.value2[,c(7)]
+bp.value2$itemid <- 4552  
+# assign dbp to new put back into chart1
+chart1 <- data.frame(rbind(charts, bp.value2))
+# # temperature in F
+# temp.C <- chart1[chart1$itemid == 678,]
+names(chart1)
+chart2 <- data.frame(chart1$id, chart1$charttime, chart1$itemid, chart1$value1num)
+names(chart2) <- c('id', 'charttime', 'itemid', 'valuenum')
+
+chart2.lactate <- chart2[!is.na(chart2$itemid)&(chart2$itemid == 818 | chart2$itemid == 1531), ]
+chart2.lactate.id <- unique(chart2.lactate$id) #11,172
+chart2.highlactate <- chart2.lactate[!is.na(chart2.lactate$itemid)&(chart2.lactate$itemid == 818 | chart2.lactate$itemid == 1531) & chart2.lactate$valuenum > 4, ]
+chart2.highlactate.id <- unique(chart2.highlactate$id) #2,351
+
+lab1.lactate <- lab1[!is.na(lab1$itemid)&(lab1$itemid == 50010), ]
+lab1.lactate.id <- unique(lab1.lactate$id) #12,541
+lab1.highlactate <- lab1.lactate[!is.na(lab1.lactate$itemid)&(lab1.lactate$itemid == 50010) & lab1.lactate$valuenum > 4, ]
+lab1.highlactate.id <- unique(lab1.highlactate$id) #2,609
+
+lactate.union <- union(lab1.lactate.id, chart2.lactate.id) #13,488
+highlactate.union <- union(lab1.highlactate.id, chart2.highlactate.id) #2,898
 
 #combine the lab and bld culture data
 complete <- rbind(lab1, bld1) 
+complete <- rbind(complete, chart2) 
 
 library(lubridate)
 complete$charttime <- ymd_hms(complete$charttime)
@@ -48,35 +72,36 @@ complete$Blood_Culture <- c(rep(0,nrow(complete)))
 complete$High_Lactate <- c(rep(0,nrow(complete)))
 complete$Severe_Sepsis <- c(rep(0,nrow(complete)))
 
+
 #find patients with high lactate value
-lactates <- complete[!is.na(complete$itemid) & complete$itemid == 50010,]       # lactate lab values
-length(table(lactates$id))          # total patients had lactate tested  #24,358
+lactates <- complete[!is.na(complete$itemid) & (complete$itemid == 50010 | complete$itemid == 818 | complete$itemid == 1531),]       # lactate lab values
+length(table(lactates$id))          # total patients had lactate tested  #24,951
 highlactates <- lactates[lactates$valuenum >= 4,] 
 
 hl <- highlactates$id[!duplicated(highlactates$id) & !is.na(highlactates$id)]            # Identify individuals with a high lactate
-#2740 patients
+#3,043 patients
 
 bldcultures <- complete[!is.na(complete$itemid) & (complete$itemid == 70011 | complete$itemid == 70012),] 
 bc <- bldcultures$id[!duplicated(bldcultures$id) & !is.na(bldcultures$id)]     # Identify patients with a blood culture taken (12,845)
 
 ## From 'complete' data set, select only patients who have high lactate and blood culture
-hl.bc <- intersect(hl, bc)  #2,039
+hl.bc <- intersect(hl, bc)  #2,183
 # hl.bc <- as.list(hl.bc)
 
 possible.sepsis <- complete[(complete$id %in% hl.bc),] 
 # Identify patients in 'possible.sepsis' data set who have missing chart times for blood culture
 # bc.missing <- possible.sepsis[possible.sepsis$HALFHOUR=="" & !is.na(possible.sepsis$SPEC_ITEMID),]         # Try this command if the one right below does not work
-bc.missing <- possible.sepsis[is.na(possible.sepsis$charttime) & (possible.sepsis$itemid == 70011 | possible.sepsis$itemid == 70012),]      
-bc.missing.patients <- bc.missing[!duplicated(bc.missing$id),1] #417 pts
+# bc.missing <- possible.sepsis[is.na(possible.sepsis$charttime) & (possible.sepsis$itemid == 70011 | possible.sepsis$itemid == 70012),]      
+# bc.missing.patients <- bc.missing[!duplicated(bc.missing$id),1] #417 pts
 
 ## Create reduced subset of 'complete' that excludes patients without chart time for blood culture
-reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
-
+# reduced.sepsis <- possible.sepsis[!(possible.sepsis$id %in% bc.missing.patients),]
+reduced.sepsis <- possible.sepsis[!is.na(possible.sepsis$charttime), ]
 # Count how many patients in 'reduced.sepsis' : 
-length(reduced.sepsis$id[!duplicated(reduced.sepsis$id)]) #1,622
+length(reduced.sepsis$id[!duplicated(reduced.sepsis$id)]) # 2,183
 ### Function for above code 
 
-z.0 <- function(complete){
+z.0 <- function(complete) {
   #complete <- data[data$Sid==patient,]
   ## Identify rows with blood culture taken
   for (i in 1:nrow(complete))
@@ -84,7 +109,7 @@ z.0 <- function(complete){
       complete$Blood_Culture[i] <- 1 
     ## Identify rows with high lactate
     for (i in 1:nrow(complete))
-      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & complete$itemid[i] == 50010 & complete$valuenum[i] >=4)
+      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & (complete$itemid[i] == 50010 | complete$itemid[i] == 818 | complete$itemid[i] == 1531) & complete$valuenum[i] >= 4)
         complete$High_Lactate[i] <- 1
       ## Identify rows with severe sepsis
       # Empty list for chart times for blood culture
@@ -94,10 +119,11 @@ z.0 <- function(complete){
         if (complete$Blood_Culture[i] == 1)
           time.bc <- c((complete$charttime[i]), time.bc)
       time.bc <- rev(time.bc)
+      if (!is.null(time.bc)) {
       # Assign severe sepsis to rows with high lactate that occur within 24 hours of a blood culture
       for (i in 1:nrow(complete))
-        if (complete$High_Lactate[i] == 1 & min(abs(difftime(time.bc, complete$charttime[i], units="hours"))) < 24)
-          complete$Severe_Sepsis[i] <- 1
+          if (complete$High_Lactate[i] == 1 & min(abs(difftime(time.bc, complete$charttime[i], units="hours"))) < 24)
+            complete$Severe_Sepsis[i] <- 1 }
       return(complete)
 }
 
@@ -108,75 +134,90 @@ data1 <- ddply(reduced.sepsis, .(id), z.0)
 
 ## Identify patients from 'data1' who have severe sepsis
 severe.sepsis.observations <- data1[data1$Severe_Sepsis==1,]
-severe.sepsis.pt <- severe.sepsis.observations[!duplicated(severe.sepsis.observations$id),1]
+severe.sepsis.pt <- severe.sepsis.observations[!duplicated(severe.sepsis.observations$id),1] #1,397
 
-## Count number of patients classified with severe.sepsis: 1,123; 1143
+## Count number of patients classified with severe.sepsis: 1,397
 length(severe.sepsis.pt)
 
 ## Create new data set with patients who have severe sepsis
 severe.sepsis <- data1[data1$id %in% severe.sepsis.pt,]
+save(severe.sepsis, file = 'severe.sepsis.RData')
 
-bc.missing.sepsis.1 <- possible.sepsis[(possible.sepsis$id %in% bc.missing.patients),]
-# Subset of blood culture with time (excludes blood culture without time)
-bc.missing.sepsis.2 <- bc.missing.sepsis.1[!is.na(bc.missing.sepsis.1$itemid) & (bc.missing.sepsis.1$itemid == 70011 | bc.missing.sepsis.1$itemid == 70012) & !(is.na(bc.missing.sepsis.1$charttime)),]
 
-## Identify patients who have at least one blood culture with a chart time: 395
-bc.patients.0 <- bc.missing.sepsis.2[!duplicated(bc.missing.sepsis.2$id),1]
+# bc.missing.sepsis.1 <- possible.sepsis[(possible.sepsis$id %in% bc.missing.patients),]
+# # Subset of blood culture with time (excludes blood culture without time)
+# bc.missing.sepsis.2 <- bc.missing.sepsis.1[!is.na(bc.missing.sepsis.1$itemid) & (bc.missing.sepsis.1$itemid == 70011 | bc.missing.sepsis.1$itemid == 70012) & !(is.na(bc.missing.sepsis.1$charttime)),]
+# 
+# ## Identify patients who have at least one blood culture with a chart time: 395
+# bc.patients.0 <- bc.missing.sepsis.2[!duplicated(bc.missing.sepsis.2$id),1]
+# 
+# ## Subset of data for patients who have at least one blood culture with a chart time
+# bc.missing.sepsis.3 <- bc.missing.sepsis.1[bc.missing.sepsis.1$id %in% bc.patients.0,]
+# # Choose only values with chart time
+# bc.missing.sepsis.4 <- bc.missing.sepsis.3[!is.na(bc.missing.sepsis.3$charttime),]
+# 
+# ## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
+# # bc.missing.sepsis.5 <- bc.missing.sepsis.4[!is.na(bc.missing.sepsis.4$spec_itemid) | bc.missing.sepsis.4$itemid==50010,]
+# data.2 <- ddply(bc.missing.sepsis.4, .(id), z.0) 
+# 
+# ## Identify first instance of high lactate for each patient (from 'data.2' - patients previously excluded)
+# hl.subset.0 <- data.2[data.2$High_Lactate==1,]                         # Returns all instances of high lactate
+# hl.subset.1 <- hl.subset.0[!duplicated(hl.subset.0$id),]
+# 
+# ## Identify patients whose first high lactate is also a severe sepsis event
+# hl.subset.2 <- hl.subset.1[hl.subset.1$Severe_Sepsis==1,]
+# additional.ss.index <- hl.subset.2[!duplicated(hl.subset.2$id), 1] #230 patients
+# 
+# ## If a patient's first high lactate was also a severe sepsis event, add that patients data to the Severe Sepsis group
+# additional.ss <- data.2[(data.2$id %in% additional.ss.index),]
+# severe.sepsis.all <- rbind(severe.sepsis, additional.ss)                  # Combine with 'severe.sepsis' which is the first dataset that originally excluded the second group
+# length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #1,373 patients
+# severe.sepsis.id <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]
 
-## Subset of data for patients who have at least one blood culture with a chart time
-bc.missing.sepsis.3 <- bc.missing.sepsis.1[bc.missing.sepsis.1$id %in% bc.patients.0,]
-# Choose only values with chart time
-bc.missing.sepsis.4 <- bc.missing.sepsis.3[!is.na(bc.missing.sepsis.3$charttime),]
-
-## Apply function z.0 to create data set with proper labels for Blood Culture, High Lactate, and Severe Sepsis
-# bc.missing.sepsis.5 <- bc.missing.sepsis.4[!is.na(bc.missing.sepsis.4$spec_itemid) | bc.missing.sepsis.4$itemid==50010,]
-data.2 <- ddply(bc.missing.sepsis.4, .(id), z.0) 
-
-## Identify first instance of high lactate for each patient (from 'data.2' - patients previously excluded)
-hl.subset.0 <- data.2[data.2$High_Lactate==1,]                         # Returns all instances of high lactate
-hl.subset.1 <- hl.subset.0[!duplicated(hl.subset.0$id),]
-
-## Identify patients whose first high lactate is also a severe sepsis event
-hl.subset.2 <- hl.subset.1[hl.subset.1$Severe_Sepsis==1,]
-additional.ss.index <- hl.subset.2[!duplicated(hl.subset.2$id), 1] #230 patients
-
-## If a patient's first high lactate was also a severe sepsis event, add that patients data to the Severe Sepsis group
-additional.ss <- data.2[(data.2$id %in% additional.ss.index),]
-severe.sepsis.all <- rbind(severe.sepsis, additional.ss)                  # Combine with 'severe.sepsis' which is the first dataset that originally excluded the second group
-length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #1,373 patients
-severe.sepsis.id <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]
-
-#==========================analyze the time from admission to ICU to onset of severe sepsis
-mortalityinfos2 <- read.csv('pticu_infos.csv', header = T)
-mortalityinfos2$id <- paste(mortalityinfos2$subject_id, mortalityinfos2$hospital_seq, mortalityinfos2$icustay_seq, sep='#%#')
-names(mortalityinfos2)
-icuadms <- data.frame(mortalityinfos2$id, mortalityinfos2$icustay_intime)
+#==========================analyze the time from admission to ICU to onset of severe sepsis==================
+ptsinfos2 <- read.csv('pticu_infos.csv', header = T)
+ptsinfos2$id <- paste(ptsinfos2$subject_id, ptsinfos2$hospital_seq, ptsinfos2$icustay_seq, sep='#%#')
+names(ptsinfos2)
+icuadms <- data.frame(ptsinfos2$id, ptsinfos2$icustay_intime)
 names(icuadms) <- c('id', 'intime')
 
+severe.sepsis.all <- severe.sepsis[order(severe.sepsis$id, severe.sepsis$charttime), ]
 sepsis.events <- data.frame(matrix(ncol = ncol(severe.sepsis.all), nrow = 0))
+
 z.1b <- function(dataset){
   # Identify time of event
   x <- dataset[which(dataset$Severe_Sepsis==1)[1],]    # x = time of event
   sepsis.events <- rbind(sepsis.events, x)
   return(sepsis.events)
 }
+
 severe.sepsis.eventtime <- ddply(severe.sepsis.all, .(id), z.1b)
 severe.sepsis.eventtime.2 <- merge(severe.sepsis.eventtime, icuadms, by.x = "id", by.y = "id", all.x = T)
 names(severe.sepsis.eventtime.2)
 severe.sepsis.eventtime.2$charttime <- ymd_hms(severe.sepsis.eventtime.2$charttime)
 severe.sepsis.eventtime.2$intime <- ymd_hms(severe.sepsis.eventtime.2$intime)
+
 for (i in 1:nrow(severe.sepsis.eventtime.2))
   severe.sepsis.eventtime.2$dftime[i] <- difftime(severe.sepsis.eventtime.2$charttime[i], severe.sepsis.eventtime.2$intime[i], units="hours")
+
 hist(severe.sepsis.eventtime.2$dftime, xlim = c(0,100))
 hist(severe.sepsis.eventtime.2$dftime, xlim = c(0,24))
 summary(severe.sepsis.eventtime.2$dftime)
 boxplot(severe.sepsis.eventtime.2$dftime)
 
 severe.sepsis.eventtime.3 <- severe.sepsis.eventtime.2[order(severe.sepsis.eventtime.2$dftime),]
-d <- density(severe.sepsis.eventtime.3$dftime[1:1000])
-plot(d)
-hist(severe.sepsis.eventtime.3$dftime[1:1000])
+save(severe.sepsis.eventtime.3, file = 'severe.sepsis.eventtime.3.RData')
 
+
+d <- density(severe.sepsis.eventtime.3$dftime)
+plot(d, main = 'Time from ICU admission to onset of severe sepsis')
+d <- density(severe.sepsis.eventtime.3$dftime[1:1100])
+plot(d, main = 'Time from ICU admission to onset of severe sepsis[1:1100')
+hist(severe.sepsis.eventtime.3$dftime, main = 'Time from ICU admission to onset of severe sepsis')
+hist(severe.sepsis.eventtime.3$dftime[1:1100], probability = T, main = 'Time from ICU admission to onset of severe sepsis[1:1100]', ylim=c(0,0.25))
+lines(density(severe.sepsis.eventtime.3$dftime[1:1100]))  
+boxplot(severe.sepsis.eventtime.3$dftime)
+boxplot(severe.sepsis.eventtime.3$dftime[1:1100])
 ## For patients with Severe Sepsis indicated, 
 ## Identify time of event and reduce to 24 hours before event and 24 hours after event
 ## Create Interval variable to indicate time before or after event
@@ -186,66 +227,81 @@ hist(severe.sepsis.eventtime.3$dftime[1:1000])
 z.1 <- function(dataset){
   # Identify time of event
   x <- dataset$charttime[which(dataset$Severe_Sepsis==1)[1]]    # x = time of event
-  dataset <- dataset[abs(difftime(x, dataset$charttime, units="hours"))<=6,]
-  for (i in 1:nrow(dataset))
-    dataset$Interval[i] <- difftime(dataset$charttime[i], x, units="hours")
-  return(dataset)
+#   dataset <- dataset[abs(difftime(x, dataset$charttime, units="hours"))<=6,]
+#   for (i in 1:nrow(dataset))
+#     dataset$Interval[i] <- difftime(dataset$charttime[i], x, units="hours")
+  return(x)
 }
 
 ## Apply function z.1 to set time of event and set intervals for all other observations
-severe.sepsis.intervals <- ddply(severe.sepsis.all, .(id), z.1)
+severe.sepsis.timeofevent <- ddply(severe.sepsis.all, .(id), z.1)
+names(severe.sepsis.timeofevent) <- c('id', 'time.event')
+severe.sepsis.all.2 <- merge(severe.sepsis.all, severe.sepsis.timeofevent, by.x = 'id', by.y = 'id', all.x = T)
 write.csv(severe.sepsis.intervals, "severe.sepsis.intervals.csv", row.names=FALSE)
 
-## Histogram of intervals
-hist(severe.sepsis.intervals$Interval)
+# severe.sepsis.intime <- data.frame(severe.sepsis.eventtime.3$id, severe.sepsis.eventtime.3$intime)
+# names(severe.sepsis.intime) <- c('id', 'intime')
+# severe.sepsis.all.3 <- merge(severe.sepsis.all.2, severe.sepsis.intime, by.x = 'id', by.y = 'id', all.x = T)
+# 
+# severe.sepsis.all.3$left.time0 <- severe.sepsis.all.3$time.event - 10800*2*4
+# severe.sepsis.all.3$left.time <- apply(severe.sepsis.all.3[,c(9,10)], 1, max)
+# severe.sepsis.all.3$left.time <- as.POSIXct(severe.sepsis.all.3$left.time,format="%Y-%m-%d %H:%M:%S")
 
-# severe.sepsis.intervals <- read.csv("severe.sepsis.intervals.csv", header=T)
-## New data set with values before time of event (necessary for prediction)
-severe.sepsis.intervals.2 <- severe.sepsis.intervals[severe.sepsis.intervals$Interval < 0, c(1:6)]
+# names(severe.sepsis.all.3)
+
+# f.1a <- function (x) {
+#   if (!is.na(x[2]) & !is.na(x[11]) & !is.na(x[8]) & (x[2] >= x[11]) & (x[2] < x[8])) {
+#     t <- 1
+#   }
+#   else
+#   {
+#     t <- 0
+#   }
+# }
+
+# severe.sepsis.all.3$includerow <- apply(severe.sepsis.all.3, 1, f.1a) # recognize rows with charttime between -6<x<0
 
 
-target.complete <- severe.sepsis.intervals.2
-target.complete$time0 <- rep(1, nrow(target.complete))
-
-
-# Get diastolic blood pressure
-bp.value2 <- charts[charts$itemid == 455,]
-bp.value2[,c(6)] <- bp.value2[,c(7)]
-bp.value2$itemid <- 4552  
-# assign dbp to new put back into chart1
-chart1 <- data.frame(rbind(charts, bp.value2))
-# drop meanvalue2 and stdvalue2
-chart1$value2num <- NULL
-
-
-# temperature in F
-temp.C <- chart1[chart1$itemid == 678,]
-chart1$charttime <- ymd_hms(chart1$charttime)
-names(chart1)
-chart2 <- data.frame(chart1$id, chart1$charttime, chart1$hospseq, chart1$itemid, chart1$value1num, chart1$comorb)
-names(chart2) <- c('id', 'charttime', 'hospital_seq', 'itemid', 'valuenum', 'comorb')
-z.2 <- function(dataset){
-  # Identify time of event
-  x <- dataset$charttime[which(dataset$time0==1)]    # x = time of event
-  dataset <- dataset[abs(difftime(x, dataset$charttime, units="hours"))<=6,]
-  for (i in 1:nrow(dataset))
-    dataset$Interval[i] <- difftime(dataset$charttime[i], x, units="hours")
-  return(dataset)
+f.1b <- function (x) {
+  if (!is.na(x[2]) & (!is.na(x[8])) & (difftime(x[8], x[2], units = 'hours') > 2 ) & (difftime(x[8], x[2], units = 'hours') <= 24)) {
+    t <- 1
+  }
+  else
+  {
+    t <- 0
+  }
 }
 
-## Chart events for target group
-# find patients that have severe sepsis
-chart2.sp <- chart2[chart2$id %in% hl.bc,]
-chart2.sp$time0 <- rep(0, nrow(chart2.sp))
+severe.sepsis.all.2$includerow <- apply(severe.sepsis.all.2, 1, f.1b) # recognize rows with charttime between -24<x<-2
+head(severe.sepsis.all.2)  
 
-chart2.sp.time <- rbind(target.complete, chart2.sp)
-chart2.sp.time.2 <- chart2.sp.time[!is.na(chart2.sp.time$charttime),]       # Remove NA values (no NA values)
-chart.sp.intervals <- ddply(chart2.sp.time.2, .(id), z.2) 
-hist(chart.sp.intervals$Interval)
+# target group data
+target <- severe.sepsis.all.2[severe.sepsis.all.2$includerow > 0,]
+target.id <- unique(target$id)
+write.csv(target, "target_6hrs.csv", row.names=FALSE)
 
-chart.target <- chart.sp.intervals[chart.sp.intervals$Interval < 0,]
-write.csv(chart.target, "chart.target.csv", row.names=FALSE)
-write.csv(target.complete, "lab.target.csv", row.names=FALSE)
+
+f.1c <- function (x) {
+  if (!is.na(x[2]) & (!is.na(x[8])) & (difftime(x[8], x[2], units = 'hours') > 2 ) & (difftime(x[8], x[2], units = 'hours') <= 6)) {
+    t <- 1
+  }
+  else
+  {
+    t <- 0
+  }
+}
+
+severe.sepsis.all.2$includerow2 <- apply(severe.sepsis.all.2, 1, f.1c) # recognize rows with charttime between -6<x<-2
+head(severe.sepsis.all.2)  
+
+# target group data
+target <- severe.sepsis.all.2[severe.sepsis.all.2$includerow > 0,]
+target.id <- unique(target$id) #734 patients
+write.csv(target, "target_24hrs.csv", row.names=FALSE)
+
+target2 <- severe.sepsis.all.2[severe.sepsis.all.2$includerow2 > 0,]
+target2.id <- unique(target2$id) #
+write.csv(target2, "target_6hrs.csv", row.names=FALSE)
 
 
 
@@ -272,9 +328,14 @@ end.time <- ddply(control.group, "id", summarise, max(charttime))
 pool <- data.frame(start.time[,1], start.time[,2], end.time[,2])
 names(pool) <- c("id", "start.time", "end.time")
 pool <- pool[!(is.na(pool$start.time) | is.na(pool$end.time)),]  
-
 pool$diff <- pool$end.time - pool$start.time
+
+control.all <- merge(control.group, pool$diff, by.x = 'id', by.y = 'id', all.x = T)
+
+
+control.all.2 <- control.all[control.all$diff > 3600 * 24, ]
 set.seed(12345)
+
 random.time <- sapply(1:nrow(pool), function(i) runif(1, 0, max = pool[i, 4]))
 pool$middle.time <- pool$start.time+as.period(random.time,unit="seconds")
 head(pool)
