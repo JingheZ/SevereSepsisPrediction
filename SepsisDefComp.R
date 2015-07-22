@@ -235,8 +235,8 @@ additional.ss.index <- hl.subset.2[!duplicated(hl.subset.2$id), 1] #230 patients
 ## If a patient's first high lactate was also a severe sepsis event, add that patients data to the Severe Sepsis group
 additional.ss <- data.2[(data.2$id %in% additional.ss.index),]
 severe.sepsis.all <- rbind(severe.sepsis, additional.ss)                  # Combine with 'severe.sepsis' which is the first dataset that originally excluded the second group
-length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #1,353 patients
-severe.sepsis.id2 <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)] #2,396
+length(severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)]) #
+severe.sepsis.id2 <- severe.sepsis.all$id[!duplicated(severe.sepsis.all$id)] #2,609
 
 
 # #================patients with infections and organ dysfunction==================================
@@ -364,6 +364,7 @@ df4.ndf6 <- setdiff(df4, df6) #8,746
 df6.ndf5 <-setdiff(df6, df5) #489
 df6.df5 <-intersect(df6, df5) #634
 df5.ndf6 <- setdiff(df5, df6) #6,676
+
 # ==========================================mortiality info=================================================================
 mortalityinfos <- read.csv('mortality.csv', header = T)
 mortalityinfos$id <- paste(mortalityinfos$subject_id, mortalityinfos$hospital_seq, mortalityinfos$icustay_seq, sep='#%#')
@@ -372,6 +373,7 @@ names(mortalityinfos)
 mortalityinfos2 <- read.csv('pticu_infos.csv', header = T)
 mortalityinfos2$id <- paste(mortalityinfos2$subject_id, mortalityinfos2$hospital_seq, mortalityinfos2$icustay_seq, sep='#%#')
 names(mortalityinfos2)
+length(unique(mortalityinfos2$id))
 mortalityinfos2$id0 <- paste(mortalityinfos2$subject_id, mortalityinfos2$hospital_seq, sep='#%#')
 mortalityinfos2$hospital_disch_dt <- ymd_hms(mortalityinfos2$hospital_disch_dt)
 mortalityinfos2$icustay_outtime <- ymd_hms(mortalityinfos2$icustay_outtime)
@@ -383,18 +385,6 @@ mortalityinfos2.icu30 <- mortalityinfos2[mortalityinfos2$icustay_expire_flg == '
 mortalityinfos2.hosp30.id <- unique(mortalityinfos2.hosp30$id)
 mortalityinfos2.icu30.id <- unique(mortalityinfos2.icu30$id)
 
-bld$id0 <- paste(bld$subject_id, bld$hospital_seq, sep='#%#')
-pts.ids <- unique(mortalityinfos2$id)
-pts.id0 <- mortalityinfos2$id0
-bld.ids <- unique(bld$id)
-bld.id0 <- unique(bld$id0)
-bld.missingicu.id <- unique(bld$id0[bld$icuseq==0]) #1043; subject_id and hospital_seq with missing icustay_id in bld culture data
-pts.ids.missingicu.id <- unique(pts.ids[pts.id0 %in% bld.missingicu.id]) # 2,235; the complete id infos of patients with missing icu stays
-bld.ids.withicu.id <- unique(bld$id[bld$icuseq>0]) #22,851; the complete id infos of patients with icu-seq info
-dff1 <- setdiff(pts.ids.missingicu.id, bld.ids.withicu.id)# 1,213; number of patients in bld culture data with missing icu_seq info
-intersect1 <- intersect(pts.ids.missingicu.id, bld.ids.withicu.id) #1,022; number of patients in bld culture data with at least one bld culture taken
-#hence, there are 2,235 possible icu-stays with 1,043 hospital visits which have undecided bld culture taken; 
-#Among those 2,235 possible icu-stays, 1,022icu-stays had at least one bld-culture taken, while 1,213 had no bld culture taken or unknown since the timestamp is missing
 
 hosp_mortality <- mortalityinfos[!is.na(mortalityinfos$hospital_expire_flg) & mortalityinfos$hospital_expire_flg == 'Y',]
 hosp_nonmortality <- mortalityinfos[!is.na(mortalityinfos$hospital_expire_flg) & mortalityinfos$hospital_expire_flg == 'N',]
@@ -409,66 +399,34 @@ icu_nonmortality.id <- unique(icu_nonmortality$id) #22,174
 
 #========================morality in each definition of severe sepsis=================================
 df1.hosp_mortality <- intersect(df1, hosp_mortality.id) #515
-df1.hosp_nonmortality <- intersect(df1, hosp_nonmortality.id) #608
-
 df2.hosp_mortality <- intersect(df2, hosp_mortality.id) #1,465
-df2.hosp_nonmortality <- intersect(df2, hosp_nonmortality.id) #4,274
-
 df3.hosp_mortality <- intersect(df3, hosp_mortality.id) #1,102
-df3.hosp_nonmortality <- intersect(df3, hosp_nonmortality.id) #3,170
-
 df4.hosp_mortality <- intersect(df4, hosp_mortality.id) #1,928
-df4.hosp_nonmortality <- intersect(df4, hosp_nonmortality.id) #7,622
-
 df5.hosp_mortality <- intersect(df5, hosp_mortality.id) #1,476
-df5.hosp_nonmortality <- intersect(df5, hosp_nonmortality.id) #5,834
-
 df6.hosp_mortality <- intersect(df6, hosp_mortality.id) #565
-df6.hosp_nonmortality <- intersect(df6, hosp_nonmortality.id) #608
 
 
 df1.icu_mortality <- intersect(df1, icu_mortality.id) #435
-df1.icu_nonmortality <- intersect(df1, icu_nonmortality.id) #688
-
 df2.icu_mortality <- intersect(df2, icu_mortality.id) #987
-df2.icu_nonmortality <- intersect(df2, icu_nonmortality.id) #4,752
-
 df3.icu_mortality <- intersect(df3, icu_mortality.id) #764
-df3.icu_nonmortality <- intersect(df3, icu_nonmortality.id) #3,508
-
 df4.icu_mortality <- intersect(df4, icu_mortality.id) #1,291
-df4.icu_nonmortality <- intersect(df4, icu_nonmortality.id) #8,259
-
 df5.icu_mortality <- intersect(df5, icu_mortality.id) #1,020
-df5.icu_nonmortality <- intersect(df5, icu_nonmortality.id) #6,290
-
 df6.icu_mortality <- intersect(df6, icu_mortality.id) #435
-df6.icu_nonmortality <- intersect(df6, icu_nonmortality.id) #688
+
 
 
 df1.mortalityinfos2.hosp30 <- intersect(df1, mortalityinfos2.hosp30.id) #515
-
 df2.mortalityinfos2.hosp30 <- intersect(df2, mortalityinfos2.hosp30.id) #1,465
-
 df3.mortalityinfos2.hosp30 <- intersect(df3, mortalityinfos2.hosp30.id) #1,102
-
 df4.mortalityinfos2.hosp30 <- intersect(df4, mortalityinfos2.hosp30.id) #1,928
-
 df5.mortalityinfos2.hosp30 <- intersect(df5, mortalityinfos2.hosp30.id) #1,476
-
 df6.mortalityinfos2.hosp30 <- intersect(df6, mortalityinfos2.hosp30.id) #565
 
-
 df1.mortalityinfos2.icu30 <- intersect(df1, mortalityinfos2.icu30.id) #435
-
 df2.mortalityinfos2.icu30 <- intersect(df2, mortalityinfos2.icu30.id) #987
-
 df3.mortalityinfos2.icu30 <- intersect(df3, mortalityinfos2.icu30.id) #764
-
 df4.mortalityinfos2.icu30 <- intersect(df4, mortalityinfos2.icu30.id) #1,291
-
 df5.mortalityinfos2.icu30 <- intersect(df5, mortalityinfos2.icu30.id) #1,020
-
 df6.mortalityinfos2.icu30 <- intersect(df6, mortalityinfos2.icu30.id) #435
 
 #===========================HIV and severe sepsis==========================
@@ -476,20 +434,18 @@ HIVicd9 <- read.csv('HIVicd9.csv', header = T)
 HIVicd9$id <- paste(HIVicd9$subject_id, HIVicd9$hospital_seq, HIVicd9$icustay_seq, sep='#%#')
 HIVicd9.id <- unique(HIVicd9$id) #404
 
-HIVtests <- read.csv('HIVtests.csv', header = T)
-HIVtests$id <- paste(HIVtests$subject_id, HIVtests$hospital_seq, HIVtests$icustay_seq, sep='#%#')
-HIVtests1 <- HIVtests[HIVtests$itemid==50356 & (HIVtests$valuenum > 15 | HIVtests$valuenum < 6), ]
-HIVtests1.id <- unique(HIVtests1$id) #96
+# HIVtests <- read.csv('HIVtests.csv', header = T)
+# HIVtests$id <- paste(HIVtests$subject_id, HIVtests$hospital_seq, HIVtests$icustay_seq, sep='#%#')
+# HIVtests1 <- HIVtests[HIVtests$itemid==50356 & (HIVtests$valuenum > 15 | HIVtests$valuenum < 6), ]
+# HIVtests1.id <- unique(HIVtests1$id) #96
 
-HIVid <- union(HIVicd9.id, HIVtests1.id) #455
-HIVid.hospmorality <- intersect(HIVid, hosp_mortality.id) #71
-HIVid.nonhospmorality <- intersect(HIVid, hosp_nonmortality.id) #383
+# HIVid <- union(HIVicd9.id, HIVtests1.id) #455
+HIVid <- HIVicd9.id
+HIVid.hospmortality <- intersect(HIVid, hosp_mortality.id) #71
+HIVid.icumortality <- intersect(HIVid, icu_mortality.id) #50
 
-HIVid.icupmorality <- intersect(HIVid, icu_mortality.id) #50
-HIVid.nonicupmorality <- intersect(HIVid, icu_nonmortality.id) #404
-
-HIVid.hospmorality30 <- intersect(HIVid, mortalityinfos2.hosp30.id) #71
-HIVid.icupmorality30 <- intersect(HIVid, mortalityinfos2.icu30.id) #50
+HIVid.hospmortality30 <- intersect(HIVid, mortalityinfos2.hosp30.id) #71
+HIVid.icumortality30 <- intersect(HIVid, mortalityinfos2.icu30.id) #50
 
 HIVid.ndf1 <-setdiff(HIVid, df1) #407
 HIVid.df1 <-intersect(HIVid, df1) #48
@@ -515,7 +471,135 @@ HIVid.ndf6 <-setdiff(HIVid, df6) #407
 HIVid.df6 <-intersect(HIVid, df6) #48
 df6.nHIVid  <- setdiff(df6, HIVid) #1,075
 
+HIVid.ndf1.icumortality <- intersect(HIVid.ndf1, HIVid.icumortality)
+HIVid.ndf2.icumortality <- intersect(HIVid.ndf2, HIVid.icumortality)
+HIVid.ndf3.icumortality <- intersect(HIVid.ndf3, HIVid.icumortality)
+HIVid.ndf4.icumortality <- intersect(HIVid.ndf4, HIVid.icumortality)
+HIVid.ndf5.icumortality <- intersect(HIVid.ndf5, HIVid.icumortality)
+HIVid.ndf6.icumortality <- intersect(HIVid.ndf6, HIVid.icumortality)
+
+HIVid.df1.icumortality <- intersect(HIVid.df1, HIVid.icumortality)
+HIVid.df2.icumortality <- intersect(HIVid.df2, HIVid.icumortality)
+HIVid.df3.icumortality <- intersect(HIVid.df3, HIVid.icumortality)
+HIVid.df4.icumortality <- intersect(HIVid.df4, HIVid.icumortality)
+HIVid.df5.icumortality <- intersect(HIVid.df5, HIVid.icumortality)
+HIVid.df6.icumortality <- intersect(HIVid.df6, HIVid.icumortality)
+
+length(HIVid.ndf1.icumortality) / length(HIVid.ndf1)
+length(HIVid.ndf2.icumortality) / length(HIVid.ndf2)
+length(HIVid.ndf3.icumortality) / length(HIVid.ndf3)
+length(HIVid.ndf4.icumortality) / length(HIVid.ndf4)
+length(HIVid.ndf5.icumortality) / length(HIVid.ndf5)
+length(HIVid.ndf6.icumortality) / length(HIVid.ndf6)
+
+length(HIVid.df1.icumortality) / length(HIVid.df1)
+length(HIVid.df2.icumortality) / length(HIVid.df2)
+length(HIVid.df3.icumortality) / length(HIVid.df3)
+length(HIVid.df4.icumortality) / length(HIVid.df4)
+length(HIVid.df5.icumortality) / length(HIVid.df5)
+length(HIVid.df6.icumortality) / length(HIVid.df6)
+
+
+HIVid.ndf1.hospmortality <- intersect(HIVid.ndf1, HIVid.hospmortality)
+HIVid.ndf2.hospmortality <- intersect(HIVid.ndf2, HIVid.hospmortality)
+HIVid.ndf3.hospmortality <- intersect(HIVid.ndf3, HIVid.hospmortality)
+HIVid.ndf4.hospmortality <- intersect(HIVid.ndf4, HIVid.hospmortality)
+HIVid.ndf5.hospmortality <- intersect(HIVid.ndf5, HIVid.hospmortality)
+HIVid.ndf6.hospmortality <- intersect(HIVid.ndf6, HIVid.hospmortality)
+
+HIVid.df1.hospmortality <- intersect(HIVid.df1, HIVid.hospmortality)
+HIVid.df2.hospmortality <- intersect(HIVid.df2, HIVid.hospmortality)
+HIVid.df3.hospmortality <- intersect(HIVid.df3, HIVid.hospmortality)
+HIVid.df4.hospmortality <- intersect(HIVid.df4, HIVid.hospmortality)
+HIVid.df5.hospmortality <- intersect(HIVid.df5, HIVid.hospmortality)
+HIVid.df6.hospmortality <- intersect(HIVid.df6, HIVid.hospmortality)
+
+
+length(HIVid.ndf1.hospmortality) / length(HIVid.ndf1)
+length(HIVid.ndf2.hospmortality) / length(HIVid.ndf2)
+length(HIVid.ndf3.hospmortality) / length(HIVid.ndf3)
+length(HIVid.ndf4.hospmortality) / length(HIVid.ndf4)
+length(HIVid.ndf5.hospmortality) / length(HIVid.ndf5)
+length(HIVid.ndf6.hospmortality) / length(HIVid.ndf6)
+
+length(HIVid.df1.hospmortality) / length(HIVid.df1)
+length(HIVid.df2.hospmortality) / length(HIVid.df2)
+length(HIVid.df3.hospmortality) / length(HIVid.df3)
+length(HIVid.df4.hospmortality) / length(HIVid.df4)
+length(HIVid.df5.hospmortality) / length(HIVid.df5)
+length(HIVid.df6.hospmortality) / length(HIVid.df6)
 
 
 
+HIVid.ndf1.icumortality30 <- intersect(HIVid.ndf1, HIVid.icumortality30)
+HIVid.ndf2.icumortality30 <- intersect(HIVid.ndf2, HIVid.icumortality30)
+HIVid.ndf3.icumortality30 <- intersect(HIVid.ndf3, HIVid.icumortality30)
+HIVid.ndf4.icumortality30 <- intersect(HIVid.ndf4, HIVid.icumortality30)
+HIVid.ndf5.icumortality30 <- intersect(HIVid.ndf5, HIVid.icumortality30)
+HIVid.ndf6.icumortality30 <- intersect(HIVid.ndf6, HIVid.icumortality30)
 
+HIVid.df1.icumortality30 <- intersect(HIVid.df1, HIVid.icumortality30)
+HIVid.df2.icumortality30 <- intersect(HIVid.df2, HIVid.icumortality30)
+HIVid.df3.icumortality30 <- intersect(HIVid.df3, HIVid.icumortality30)
+HIVid.df4.icumortality30 <- intersect(HIVid.df4, HIVid.icumortality30)
+HIVid.df5.icumortality30 <- intersect(HIVid.df5, HIVid.icumortality30)
+HIVid.df6.icumortality30 <- intersect(HIVid.df6, HIVid.icumortality30)
+
+length(HIVid.ndf1.icumortality30) / length(HIVid.ndf1)
+length(HIVid.ndf2.icumortality30) / length(HIVid.ndf2)
+length(HIVid.ndf3.icumortality30) / length(HIVid.ndf3)
+length(HIVid.ndf4.icumortality30) / length(HIVid.ndf4)
+length(HIVid.ndf5.icumortality30) / length(HIVid.ndf5)
+length(HIVid.ndf6.icumortality30) / length(HIVid.ndf6)
+
+length(HIVid.df1.icumortality30) / length(HIVid.df1)
+length(HIVid.df2.icumortality30) / length(HIVid.df2)
+length(HIVid.df3.icumortality30) / length(HIVid.df3)
+length(HIVid.df4.icumortality30) / length(HIVid.df4)
+length(HIVid.df5.icumortality30) / length(HIVid.df5)
+length(HIVid.df6.icumortality30) / length(HIVid.df6)
+
+
+HIVid.ndf1.hospmortality30 <- intersect(HIVid.ndf1, HIVid.hospmortality30)
+HIVid.ndf2.hospmortality30 <- intersect(HIVid.ndf2, HIVid.hospmortality30)
+HIVid.ndf3.hospmortality30 <- intersect(HIVid.ndf3, HIVid.hospmortality30)
+HIVid.ndf4.hospmortality30 <- intersect(HIVid.ndf4, HIVid.hospmortality30)
+HIVid.ndf5.hospmortality30 <- intersect(HIVid.ndf5, HIVid.hospmortality30)
+HIVid.ndf6.hospmortality30 <- intersect(HIVid.ndf6, HIVid.hospmortality30)
+
+HIVid.df1.hospmortality30 <- intersect(HIVid.df1, HIVid.hospmortality30)
+HIVid.df2.hospmortality30 <- intersect(HIVid.df2, HIVid.hospmortality30)
+HIVid.df3.hospmortality30 <- intersect(HIVid.df3, HIVid.hospmortality30)
+HIVid.df4.hospmortality30 <- intersect(HIVid.df4, HIVid.hospmortality30)
+HIVid.df5.hospmortality30 <- intersect(HIVid.df5, HIVid.hospmortality30)
+HIVid.df6.hospmortality30 <- intersect(HIVid.df6, HIVid.hospmortality30)
+
+
+length(HIVid.ndf1.hospmortality30) / length(HIVid.ndf1)
+length(HIVid.ndf2.hospmortality30) / length(HIVid.ndf2)
+length(HIVid.ndf3.hospmortality30) / length(HIVid.ndf3)
+length(HIVid.ndf4.hospmortality30) / length(HIVid.ndf4)
+length(HIVid.ndf5.hospmortality30) / length(HIVid.ndf5)
+length(HIVid.ndf6.hospmortality30) / length(HIVid.ndf6)
+
+
+length(HIVid.df1.hospmortality30) / length(HIVid.df1)
+length(HIVid.df2.hospmortality30) / length(HIVid.df2)
+length(HIVid.df3.hospmortality30) / length(HIVid.df3)
+length(HIVid.df4.hospmortality30) / length(HIVid.df4)
+length(HIVid.df5.hospmortality30) / length(HIVid.df5)
+length(HIVid.df6.hospmortality30) / length(HIVid.df6)
+
+#==============================analyze patients bld culture data with missing icustay_seq============================
+bld$id0 <- paste(bld$subject_id, bld$hospital_seq, sep='#%#')
+pts.ids <- unique(mortalityinfos2$id)
+pts.id0 <- mortalityinfos2$id0
+bld.ids <- unique(bld$id)
+bld.id0 <- unique(bld$id0)
+bld.missingicu.id <- unique(bld$id0[bld$icuseq==0]) #853 subject_id and hospital_seq with missing icustay_id in bld culture data
+pts.ids.missingicu.id <- unique(pts.ids[pts.id0 %in% bld.missingicu.id]) # 1,838; the complete id infos of patients with missing icu stays
+bld.ids.withicu.id <- unique(bld$id[bld$icuseq>0]) #23,105 the complete id infos of patients with icu-seq info
+dff1 <- setdiff(pts.ids.missingicu.id, bld.ids.withicu.id)# 874 number of patients in bld culture data with missing icu_seq info
+intersect1 <- intersect(pts.ids.missingicu.id, bld.ids.withicu.id) #1,022; 964 number of patients in bld culture data with at least one bld culture taken
+#hence, there are 1,838 possible icu-stays with 853 hospital visits which have undecided bld culture taken; 
+#Among those 1,838 possible icu-stays, 964 icu-stays had at least one bld-culture taken, while 874 had no bld culture taken or unknown since the timestamp is missing
