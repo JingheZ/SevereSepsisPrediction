@@ -76,7 +76,7 @@ complete$Severe_Sepsis <- c(rep(0,nrow(complete)))
 #find patients with high lactate value
 lactates <- complete[!is.na(complete$itemid) & (complete$itemid == 50010 | complete$itemid == 818 | complete$itemid == 1531),]       # lactate lab values
 length(table(lactates$id))          # total patients had lactate tested  #24,951
-highlactates <- lactates[lactates$valuenum >= 4,] 
+highlactates <- lactates[lactates$valuenum > 4,] 
 
 hl <- highlactates$id[!duplicated(highlactates$id) & !is.na(highlactates$id)]            # Identify individuals with a high lactate
 #3,043 patients
@@ -109,7 +109,7 @@ z.0 <- function(complete) {
       complete$Blood_Culture[i] <- 1 
     ## Identify rows with high lactate
     for (i in 1:nrow(complete))
-      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & (complete$itemid[i] == 50010 | complete$itemid[i] == 818 | complete$itemid[i] == 1531) & complete$valuenum[i] >= 4)
+      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & (complete$itemid[i] == 50010 | complete$itemid[i] == 818 | complete$itemid[i] == 1531) & complete$valuenum[i] > 4)
         complete$High_Lactate[i] <- 1
       ## Identify rows with severe sepsis
       # Empty list for chart times for blood culture
@@ -142,7 +142,8 @@ length(severe.sepsis.pt)
 ## Create new data set with patients who have severe sepsis
 severe.sepsis <- data1[data1$id %in% severe.sepsis.pt,]
 save(severe.sepsis, file = 'severe.sepsis.RData')
-
+# load(file = 'severe.sepsis.RData')
+severe.sepsis.pt <- unique(severe.sepsis$id)
 
 # bc.missing.sepsis.1 <- possible.sepsis[(possible.sepsis$id %in% bc.missing.patients),]
 # # Subset of blood culture with time (excludes blood culture without time)
@@ -207,17 +208,20 @@ boxplot(severe.sepsis.eventtime.2$dftime)
 
 severe.sepsis.eventtime.3 <- severe.sepsis.eventtime.2[order(severe.sepsis.eventtime.2$dftime),]
 save(severe.sepsis.eventtime.3, file = 'severe.sepsis.eventtime.3.RData')
+load('severe.sepsis.eventtime.3.RData')
 
 
 d <- density(severe.sepsis.eventtime.3$dftime)
 plot(d, main = 'Time from ICU admission to onset of severe sepsis')
 d <- density(severe.sepsis.eventtime.3$dftime[1:1100])
-plot(d, main = 'Time from ICU admission to onset of severe sepsis[1:1100')
+plot(d, main = 'Time from ICU admission to onset of severe sepsis[1:1100]')
 hist(severe.sepsis.eventtime.3$dftime, main = 'Time from ICU admission to onset of severe sepsis')
 hist(severe.sepsis.eventtime.3$dftime[1:1100], probability = T, main = 'Time from ICU admission to onset of severe sepsis[1:1100]', ylim=c(0,0.25))
 lines(density(severe.sepsis.eventtime.3$dftime[1:1100]))  
 boxplot(severe.sepsis.eventtime.3$dftime)
 boxplot(severe.sepsis.eventtime.3$dftime[1:1100])
+summary(severe.sepsis.eventtime.3$dftime)
+summary(severe.sepsis.eventtime.3$dftime[1:1100])
 ## For patients with Severe Sepsis indicated, 
 ## Identify time of event and reduce to 24 hours before event and 24 hours after event
 ## Create Interval variable to indicate time before or after event
@@ -233,11 +237,18 @@ z.1 <- function(dataset){
   return(x)
 }
 
-## Apply function z.1 to set time of event and set intervals for all other observations
+## Apply function z.1 to set time of event for all other observations with severe sepsis by definition 1
 severe.sepsis.timeofevent <- ddply(severe.sepsis.all, .(id), z.1)
 names(severe.sepsis.timeofevent) <- c('id', 'time.event')
+save(severe.sepsis.timeofevent, file = "severe.sepsis.timeofevent.RData")
+
+## Apply function z.1 to set time of event for all other observations with severe sepsis by definition 6
+severe.sepsis.timeofevent2 <- ddply(severe.sepsis2, .(id), z.1)
+names(severe.sepsis.timeofevent2) <- c('id', 'time.event')
+save(severe.sepsis.timeofevent, file = "severe.sepsis.timeofevent2.RData")
+
 severe.sepsis.all.2 <- merge(severe.sepsis.all, severe.sepsis.timeofevent, by.x = 'id', by.y = 'id', all.x = T)
-write.csv(severe.sepsis.intervals, "severe.sepsis.intervals.csv", row.names=FALSE)
+# write.csv(severe.sepsis.intervals, "severe.sepsis.intervals.csv", row.names=FALSE)
 
 # severe.sepsis.intime <- data.frame(severe.sepsis.eventtime.3$id, severe.sepsis.eventtime.3$intime)
 # names(severe.sepsis.intime) <- c('id', 'intime')
@@ -291,8 +302,10 @@ f.1c <- function (x) {
   }
 }
 
+severe.sepsis.all.2$includerow <- apply(severe.sepsis.all.2, 1, f.1b)
 severe.sepsis.all.2$includerow2 <- apply(severe.sepsis.all.2, 1, f.1c) # recognize rows with charttime between -6<x<-2
 head(severe.sepsis.all.2)  
+save(severe.sepsis.all.2, file = 'severe.sepsis.all.2.RData')
 
 # target group data
 target <- severe.sepsis.all.2[severe.sepsis.all.2$includerow > 0,]
@@ -330,40 +343,68 @@ names(pool) <- c("id", "start.time", "end.time")
 pool <- pool[!(is.na(pool$start.time) | is.na(pool$end.time)),]  
 pool$diff <- pool$end.time - pool$start.time
 
-control.all <- merge(control.group, pool$diff, by.x = 'id', by.y = 'id', all.x = T)
-
-
+control.all <- merge(control.group, pool, by.x = 'id', by.y = 'id', all.x = T)
 control.all.2 <- control.all[control.all$diff > 3600 * 24, ]
 set.seed(12345)
 
-random.time <- sapply(1:nrow(pool), function(i) runif(1, 0, max = pool[i, 4]))
-pool$middle.time <- pool$start.time+as.period(random.time,unit="seconds")
-head(pool)
+random.time <- sapply(1:nrow(control.all.2), function(i) runif(1, min = control.all.2[i, 8] + 3600 * 24, max = control.all.2[i, 9]))
+control.all.2$event.time <- control.all.2$start.time+as.period(random.time,unit="seconds")
+head(control.all.2)
 
-minutes <- floor( as.numeric( substr( pool$middle.time, 15, 16 ) ) / 30 ) * 30
-minutes <- ifelse( minutes == 30, "30", "00" )
-seconds <- rep ("00", nrow(pool))
-
-
-pool$middle.time <- as.character( pool$middle.time )
-substr( pool$middle.time , 15, 16 ) <- minutes
-substr( pool$middle.time , 18, 19 ) <- seconds
-pool$middle.time <- as.POSIXct( pool$middle.time,format="%Y-%m-%d %H:%M:%S")
-head( pool)
-
-
-pool$left.time0 <- pool$middle.time - 10800*2
-pool$left.time <- apply(pool[,c(2,6)], 1, max)
-pool$right.time <- pool$middle.time #time of event
-pool$left.time <- as.POSIXct(pool$left.time,format="%Y-%m-%d %H:%M:%S")
-
-
-head(pool)
-write.csv(pool, "pool.csv")
-
+# minutes <- floor( as.numeric( substr( pool$middle.time, 15, 16 ) ) / 30 ) * 30
+# minutes <- ifelse( minutes == 30, "30", "00" )
+# seconds <- rep ("00", nrow(pool))
+# 
+# pool$middle.time <- as.character( pool$middle.time )
+# substr( pool$middle.time , 15, 16 ) <- minutes
+# substr( pool$middle.time , 18, 19 ) <- seconds
+# pool$middle.time <- as.POSIXct( pool$middle.time,format="%Y-%m-%d %H:%M:%S")
+# head(pool)
+# 
+# pool$left.time0 <- pool$middle.time - 10800*2
+# pool$left.time <- apply(pool[,c(2,6)], 1, max)
+# pool$right.time <- pool$middle.time #time of event
+# pool$left.time <- as.POSIXct(pool$left.time,format="%Y-%m-%d %H:%M:%S")
+# 
+# 
+# head(pool)
+# write.csv(pool, "pool.csv")
 # pool2 <- pool[,c(1,5)]
 # head(pool2)
 # write.csv(pool2, "pool2.csv")
+
+f.1b2 <- function (x) {
+  if (!is.na(x[2]) & (!is.na(x[11])) & (difftime(x[11], x[2], units = 'hours') > 2 ) & (difftime(x[11], x[2], units = 'hours') <= 24)) {
+    t <- 1
+  }
+  else
+  {
+    t <- 0
+  }
+}
+
+f.1c2 <- function (x) {
+  if (!is.na(x[2]) & (!is.na(x[11])) & (difftime(x[11], x[2], units = 'hours') > 2 ) & (difftime(x[11], x[2], units = 'hours') <= 6)) {
+    t <- 1
+  }
+  else
+  {
+    t <- 0
+  }
+}
+control.all.2$includerow <- apply(control.all.2, 1, f.1b2)
+control.all.2$includerow2 <- apply(control.all.2, 1, f.1c2) # recognize rows with charttime between -6<x<-2
+head(control.all.2)  
+
+# target group data
+control <- control.all.2[control.all.2$includerow > 0,]
+control.id <- unique(control$id) #734 patients
+write.csv(control, "control_24hrs.csv", row.names=FALSE)
+
+control2 <- control.all.2[control.all.2$includerow2 > 0,]
+control2.id <- unique(control2$id) #734 patients
+write.csv(control2, "control_6hrs.csv", row.names=FALSE)
+
 
 # Format control group and include time0
 control <- pool
