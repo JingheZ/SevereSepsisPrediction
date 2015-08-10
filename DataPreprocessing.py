@@ -26,6 +26,7 @@ def readmultiICUInfoData(filename):
     print('The number of rows: %s', i)
     return pts
 
+
 def write(data, filename):
     # convert list to pandas data frame and write to csv
     df = pd.DataFrame(data)
@@ -48,12 +49,12 @@ def getHALFHOURS(filename):
     for line in f.xreadlines():
         if i > 0:
             line = line.split(',')
-            if len(line[2]) > 2:
-                t = datetime.datetime.strptime(line[2], '"%Y-%m-%d %H:%M:%S"')
+            if len(line[1]) > 2 and line[1] != 'NA':
+                line[1] = line[1].split('\n')[0]
+                t = datetime.datetime.strptime(line[1], '"%Y-%m-%d %H:%M:%S"')
                 t_hr = timeconversion(t)
             else:
-                t = line[2]
-                t_hr = line[2]
+                t_hr = line[1]
             halfhours.append(t_hr)
         i += 1
     print('The number of rows: %s', i)
@@ -145,7 +146,7 @@ def findICUSeq2(filename, infos):
                             outgap = max(t, value['outtime']) - min(t, value['outtime'])
                             gaptime[key] = min(ingap, outgap)
                         mingap = min(gaptime, key=gaptime.get)
-                        if gaptime[mingap] < datetime.timedelta(0, 86400):
+                        if gaptime[mingap] <= datetime.timedelta(0, 86400):
                             icuseq = int(mingap)
             icuseqall.append(icuseq)
             if icuseq == 0:
@@ -213,6 +214,13 @@ icuseqs_df.to_csv('icuseqs_blds.csv', sep=',', index=False, header=False)
 halfhours_df = pd.DataFrame(halfhours)
 halfhours_df.to_csv('halfhours_blds.csv', sep=',', index=False, header=False)
 
+
+icuseqs, unmatch, halfhours = findICUSeq2('pts_catheters.csv', pts_hadmicu)
+icuseqs_df = pd.DataFrame(icuseqs)
+icuseqs_df.to_csv('icuseqs_catheters.csv', sep=',', index=False, header=False)
+
+halfhours_df = pd.DataFrame(halfhours)
+halfhours_df.to_csv('halfhours_catheters.csv', sep=',', index=False, header=False)
 
 def readmultiHospInfoData(filename):
     '''Read the patient icu stay info which contains patient id, hospital admit id, hospital seq, hospital admit time,
@@ -336,7 +344,7 @@ pts_multihospital = readmultiHospInfoData('multi_hospitaladmit.csv')
 
 comorbinfo, issues = getcomorb('pts_comorbids_new.csv')
 
-hospseqs, comorbs_vitals = findhospSeqComorb('pts_vitals_new.csv', pts_multihospital, comorbinfo)
+hospseqs, comorbs_vitals = findhospSeqComorb('pts_vitals1b_new.csv', pts_multihospital, comorbinfo)
 
 hospseqs_bp, comorbs_vitals_bp = findhospSeqComorb('pts_bldpressures.csv', pts_multihospital, comorbinfo)
 
@@ -349,6 +357,19 @@ write(bldcomorbs, 'comorbscore_blds')
 write(comorbs_vitals, 'comorbscore_vitals')
 write(hospseqs, 'hospseqs_vitals')
 
+
+halfhours1 = getHALFHOURS("control.group.charttime2.csv")
+write(halfhours1, 'halfhours_control_group_charttime')
+
+
+halfhours2 = getHALFHOURS("control.charttime2.csv")
+write(halfhours2, 'halfhours_control_charttime')
+
+halfhours3 = getHALFHOURS("target.charttime2.csv")
+write(halfhours3, 'halfhours_target_charttime')
+
+halfhours4 = getHALFHOURS("lab.target.charttime2.csv")
+write(halfhours4, 'halfhours_lab_target_charttime')
 
 # deal with the infectious codes
 scode = "001, Cholera; 002, Typhoid/paratyphoid fever; 003, Other salmonella infection; 004, Shigellosis; " \
@@ -440,21 +461,3 @@ for i in s0:
 print saproxm
 
 
-def getHALFHOURS(filename):
-    # convert time of character type to datetime format
-    f = open(filename, 'rb')
-    i = 0
-    halfhours = []
-    for line in f.xreadlines():
-        if i > 0:
-            line = line.split(',')
-            if len(line[2]) > 2:
-                t = datetime.datetime.strptime(line[2], '"%Y-%m-%d %H:%M:%S"')
-                t_hr = timeconversion(t)
-            else:
-                t = line[2]
-                t_hr = line[2]
-            halfhours.append(t_hr)
-        i += 1
-    print('The number of rows: %s', i)
-    return halfhours
