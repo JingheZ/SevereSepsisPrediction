@@ -3,7 +3,8 @@
 #Read lab, bld culture, and vital signs data
 lab <- read.csv("pts_lab_new.csv", header=TRUE)
 bld<- read.csv("pts_bldcultures3_new.csv", header=TRUE)
-charts <- read.csv('pts_vitals1b_new.csv')
+charts <- read.csv('pts_vitals1b_new.csv', header = TRUE)
+
 
 #get the icuseq info for bld culture
 icuseqs <- read.csv('icuseqs_blds.csv',header = F)
@@ -13,14 +14,6 @@ hospseqs <- read.csv('hospseqs_vitals.csv', header = F)
 bld$icuseq <- as.vector(unlist(icuseqs), mode = 'numeric')
 charts$hospseq <- as.vector(unlist(hospseqs), mode = 'numeric')
 
-lab$comorb <- read.csv('comorbscore_labs.csv', header = F)
-lab$comorb <- as.vector(unlist(lab$comorb), mode = 'numeric')
-
-bld$comorb <- read.csv('comorbscore_blds.csv', header = F)
-bld$comorb <- as.vector(unlist(bld$comorb), mode = 'numeric')
-
-charts$comorb <- read.csv('comorbscore_vitals.csv', header = F)
-charts$comorb <- as.vector(unlist(charts$comorb), mode = 'numeric')
 
 bld <- bld[bld$icuseq > 0, ]
 bld$id <- paste(bld$subject_id, bld$hospital_seq, bld$icuseq, sep='#%#')
@@ -115,7 +108,7 @@ z.0 <- function(complete) {
       complete$Blood_Culture[i] <- 1 
     ## Identify rows with high lactate
     for (i in 1:nrow(complete))
-      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & (complete$itemid[i] == 50010 | complete$itemid[i] == 818 | complete$itemid[i] == 1531) & complete$valuenum[i] >= 4)
+      if(!is.na(complete$itemid[i]) & !is.na(complete$valuenum[i]) & (complete$itemid[i] == 50010 | complete$itemid[i] == 818 | complete$itemid[i] == 1531) & complete$valuenum[i] > 4)
         complete$High_Lactate[i] <- 1
       ## Identify rows with severe sepsis
       # Empty list for chart times for blood culture
@@ -292,21 +285,43 @@ heart.rate.id <- unique(charts$id[charts$itemid==211 & charts$value1num > 90]) #
 resp.rate.id <- unique(charts$id[charts$itemid==618 & charts$value1num > 20]) #20,262
 pco2.id <- unique(complete$id[complete$itemid==50016 & complete$valuenum < 32]) #6,321
 resp.pco2.id <- union(resp.rate.id, pco2.id) #21,192
-wbc.id <- unique(complete$id[complete$itemid==50316 & (complete$valuenum > 12 | complete$valuenum < 4)]) #55
+wbc.id <- unique(complete$id[(complete$itemid==50316 | complete$itemid==50468) & (complete$valuenum > 12 | complete$valuenum < 4)]) #15,785
 temp.id <- unique(charts$id[charts$itemid==678 & (charts$value1num > 100.4 | charts$value1num < 96.8)]) #15,023
 heart.temp.id <- intersect(heart.rate.id, temp.id) #13,394
 temp.resp.pco2.id <- intersect(resp.pco2.id, temp.id) #14,713; 14,757
-temp.wbc.id <- intersect(wbc.id, temp.id) #43
+temp.wbc.id <- intersect(wbc.id, temp.id) #10,222
 heart.resp.pco2.id <- intersect(heart.rate.id, resp.pco2.id) #17,630
-heart.wbc.id <- intersect(heart.rate.id, wbc.id) #46
-resp.pco2.wbc.id <- intersect(resp.pco2.id, wbc.id) #50
+heart.wbc.id <- intersect(heart.rate.id, wbc.id) #12,182
+resp.pco2.wbc.id <- intersect(resp.pco2.id, wbc.id) #13,881
 u1 <- union(heart.temp.id, temp.resp.pco2.id) #14,922; 14,930
-u2 <- union(temp.wbc.id, heart.resp.pco2.id) #17,630
-u3 <- union(heart.wbc.id, resp.pco2.wbc.id) #50
-u4 <- union(u1, u2) #19,331; 19,339
-u5 <- union(u3, u4) #19,335; 19,343
+u2 <- union(temp.wbc.id, heart.resp.pco2.id) #18,467
+u3 <- union(heart.wbc.id, resp.pco2.wbc.id) #14,059
+u4 <- union(u1, u2) #19,377
+u5 <- union(u3, u4) #20,633
 
-sirs.id <- u5 #19,335; 19,343
+sirs.id <- u5 #20,633
+
+
+sirs4 <- intersect(heart.temp.id, resp.pco2.wbc.id)
+
+sirs3.1 <- intersect(heart.temp.id, resp.pco2.id)
+sirs3.2 <- intersect(heart.temp.id, wbc.id)
+sirs3.3 <- intersect(temp.resp.pco2.id, wbc.id)
+sirs3.4 <- intersect(heart.resp.pco2.id, wbc.id)
+sirs3 <- union(sirs3.1, sirs3.2)
+sirs3 <- union(sirs3, sirs3.3)
+sirs34 <- union(sirs3, sirs3.4)
+sirs3 <- setdiff(sirs34, sirs4)
+
+sirs234 <- sirs.id
+sirs2 <- setdiff(sirs234, sirs34)
+
+sirs1 <- union(temp.id, heart.rate.id)
+sirs1 <- union(sirs1, resp.pco2.id)
+sirs1234 <- union(sirs1, wbc.id)
+sirs1 <- setdiff(sirs1234, sirs234)
+
+
 
 sirs.infectdysfun.id <- intersect(sirs.id, infectdysfun.id) #4,272 patients visits; 4,273
 
@@ -326,13 +341,19 @@ df4 <- infectdysfun2.id #9,550
 df5 <- sirs.infectdysfun2.id #7,311
 df6 <- severe.sepsis.pt2 #2,539
 
+write.csv(df2, file = 'df2.csv')
+write.csv(df3, file = 'df3.csv')
+write.csv(df4, file = 'df4.csv')
+write.csv(df5, file = 'df5.csv')
+
+
 df1.ndf2 <-setdiff(df1, df2) #533
 df1.df2 <-intersect(df1, df2) #816
 df2.ndf1 <- setdiff(df2, df1) #4,923
 
-df1.ndf3 <- setdiff(df1, df3) #702
-df1.df3 <- intersect(df1, df3) #647
-df3.ndf1 <- setdiff(df3, df1) #3,626
+df1.ndf3 <- setdiff(df1, df3) #600
+df1.df3 <- intersect(df1, df3) #749
+df3.ndf1 <- setdiff(df3, df1) #3,947
 
 df1.ndf4 <-setdiff(df1, df4) #363
 df1.df4 <-intersect(df1, df4) #986
@@ -347,19 +368,19 @@ df6.ndf2 <-setdiff(df6, df2) #1105
 df6.df2 <-intersect(df6, df2) #1434
 df2.ndf6 <- setdiff(df2, df6) #4,305
 
-df6.ndf3 <- setdiff(df6, df3) #1427
-df6.df3 <- intersect(df6, df3) #1112
-df3.ndf6 <- setdiff(df3, df6) #3,161
+df6.ndf3 <- setdiff(df6, df3) #1265
+df6.df3 <- intersect(df6, df3) #1274
+df3.ndf6 <- setdiff(df3, df6) #3,422
 
 df6.ndf4 <-setdiff(df6, df4) #729
 df6.df4 <-intersect(df6, df4) #1810
 df4.ndf6 <- setdiff(df4, df6) #7740
 
-df6.ndf5 <-setdiff(df6, df5) #1134
-df6.df5 <-intersect(df6, df5) #1405
-df5.ndf6 <- setdiff(df5, df6) #5906
+df6.ndf5 <-setdiff(df6, df5) #929
+df6.df5 <-intersect(df6, df5) #1610
+df5.ndf6 <- setdiff(df5, df6) #6291
 
-
+write.csv(df2, file = 'df2.csv')
 
 # ==========================================mortiality info=================================================================
 mortalityinfos <- read.csv('mortality.csv', header = T)
@@ -395,7 +416,7 @@ head(df1.mortality30)
 df1.mortality30.id <- c()
 for (i in 1:nrow(df1.mortality30)) 
   if (difftime(df1.mortality30$dod[i], df1.mortality30$time.event[i], units="hours") < 30*24) {
-    df1.mortality30.id <- c(df1.mortality30.id, df1.mortality30$id[i])
+    df1.mortality30.id <- c(df1.mortality30.id, as.character(df1.mortality30$id[i]))
   }
 
 
@@ -406,7 +427,7 @@ head(df6.mortality30)
 df6.mortality30.id <- c()
 for (i in 1:nrow(df6.mortality30)) 
   if (difftime(df6.mortality30$dod[i], df6.mortality30$time.event[i], units="hours") < 30*24) {
-    df6.mortality30.id <- c(df6.mortality30.id, df6.mortality30$id[i])
+    df6.mortality30.id <- c(df6.mortality30.id, as.character(df6.mortality30$id[i]))
   }
 length(df6.mortality30.id)
 length(df6.mortality30.id)/2539
@@ -429,63 +450,57 @@ hospids <- function(ids) {
 
 df1.id2 <- hospids(df1) #1335
 df2.id2 <- hospids(df2) #5080
-df3.id2 <- hospids(df3) #3811
+df3.id2 <- hospids(df3) #4208
 df4.id2 <- hospids(df4) #8666
 df5.id2 <- hospids(df5) #6661
 df6.id2 <- hospids(df6) #2495
 
-df1.id2 <- hospids(df1) #1335
-df2.id2 <- hospids(df2) #5080
-df3.id2 <- hospids(df3) #3811
-df4.id2 <- hospids(df4) #8666
-df5.id2 <- hospids(df5) #6661
-df6.id2 <- hospids(df6) #2495
 
 df1.df2.id2 <- hospids(df1.df2) #804
-df1.df3.id2 <- hospids(df1.df3) #636
+df1.df3.id2 <- hospids(df1.df3) #738
 df1.df4.id2 <- hospids(df1.df4) #972
-df1.df5.id2 <- hospids(df1.df5) #763
+df1.df5.id2 <- hospids(df1.df5) #892
 
 df6.df2.id2 <- hospids(df6.df2) #1401
-df6.df3.id2 <- hospids(df6.df3) #1086
+df6.df3.id2 <- hospids(df6.df3) #1246
 df6.df4.id2 <- hospids(df6.df4) #1768
-df6.df5.id2 <- hospids(df6.df5) #1374
+df6.df5.id2 <- hospids(df6.df5) #1576
 
 df1.hosp_mortality <- intersect(df1, hosp_mortality.id) #627
 df2.hosp_mortality <- intersect(df2, hosp_mortality.id) #1,465
-df3.hosp_mortality <- intersect(df3, hosp_mortality.id) #1,103
+df3.hosp_mortality <- intersect(df3, hosp_mortality.id) #1,261
 df4.hosp_mortality <- intersect(df4, hosp_mortality.id) #1,928
-df5.hosp_mortality <- intersect(df5, hosp_mortality.id) #1,477
+df5.hosp_mortality <- intersect(df5, hosp_mortality.id) #1,664
 df6.hosp_mortality <- intersect(df6, hosp_mortality.id) #948
 
 
 df1.df2.hosp_mortality <- intersect(df1.df2, hosp_mortality.id) #437
-df1.df3.hosp_mortality <- intersect(df1.df3, hosp_mortality.id) #345
+df1.df3.hosp_mortality <- intersect(df1.df3, hosp_mortality.id) #407
 df1.df4.hosp_mortality <- intersect(df1.df4, hosp_mortality.id) #487
-df1.df5.hosp_mortality <- intersect(df1.df5, hosp_mortality.id) #375
+df1.df5.hosp_mortality <- intersect(df1.df5, hosp_mortality.id) #450
 
 df6.df2.hosp_mortality <- intersect(df6.df2, hosp_mortality.id) #640
-df6.df3.hosp_mortality <- intersect(df6.df3, hosp_mortality.id) #497
+df6.df3.hosp_mortality <- intersect(df6.df3, hosp_mortality.id) #586
 df6.df4.hosp_mortality <- intersect(df6.df4, hosp_mortality.id) #731
-df6.df5.hosp_mortality <- intersect(df6.df5, hosp_mortality.id) #561
+df6.df5.hosp_mortality <- intersect(df6.df5, hosp_mortality.id) #667
 
 
 df1.icu_mortality <- intersect(df1, icu_mortality.id) #530
 df2.icu_mortality <- intersect(df2, icu_mortality.id) #987
-df3.icu_mortality <- intersect(df3, icu_mortality.id) #765
+df3.icu_mortality <- intersect(df3, icu_mortality.id) #881
 df4.icu_mortality <- intersect(df4, icu_mortality.id) #1,291
-df5.icu_mortality <- intersect(df5, icu_mortality.id) #1,021
+df5.icu_mortality <- intersect(df5, icu_mortality.id) #1,163
 df6.icu_mortality <- intersect(df6, icu_mortality.id) #772
 
 df1.df2.icu_mortality <- intersect(df1.df2, icu_mortality.id) #368
-df1.df3.icu_mortality <- intersect(df1.df3, icu_mortality.id) #290
+df1.df3.icu_mortality <- intersect(df1.df3, icu_mortality.id) #343
 df1.df4.icu_mortality <- intersect(df1.df4, icu_mortality.id) #416
-df1.df5.icu_mortality <- intersect(df1.df5, icu_mortality.id) #322
+df1.df5.icu_mortality <- intersect(df1.df5, icu_mortality.id) #387
 
 df6.df2.icu_mortality <- intersect(df6.df2, icu_mortality.id) #520
-df6.df3.icu_mortality <- intersect(df6.df3, icu_mortality.id) #402
+df6.df3.icu_mortality <- intersect(df6.df3, icu_mortality.id) #477
 df6.df4.icu_mortality <- intersect(df6.df4, icu_mortality.id) #598
-df6.df5.icu_mortality <- intersect(df6.df5, icu_mortality.id) #459
+df6.df5.icu_mortality <- intersect(df6.df5, icu_mortality.id) #550
 
 
 # df1.mortalityinfos2.hosp30 <- intersect(df1, mortalityinfos2.hosp30.id) #515
@@ -502,6 +517,38 @@ df6.df5.icu_mortality <- intersect(df6.df5, icu_mortality.id) #459
 # df5.mortalityinfos2.icu30 <- intersect(df5, mortalityinfos2.icu30.id) #1,020
 # df6.mortalityinfos2.icu30 <- intersect(df6, mortalityinfos2.icu30.id) #435
 
+#============mortalities among patients satisfying SIRS criteria==================
+sirs1.id2 <- hospids(sirs1) #2616
+sirs2.id2 <- hospids(sirs2) #3953
+sirs3.id2 <- hospids(sirs3) #7011
+sirs4.id2 <- hospids(sirs4) #8977
+sirs234.id2 <- hospids(sirs234) #19252
+
+
+sirs1.hosp_mortality <- intersect(sirs1, hosp_mortality.id) #283
+sirs2.hosp_mortality <- intersect(sirs2, hosp_mortality.id) #359
+sirs3.hosp_mortality <- intersect(sirs3, hosp_mortality.id) #589
+sirs4.hosp_mortality <- intersect(sirs4, hosp_mortality.id) #1709
+sirs234.hosp_mortality <- intersect(sirs234, hosp_mortality.id) #2657
+
+
+sirs1.icu_mortality <- intersect(sirs1, icu_mortality.id) #152
+sirs2.icu_mortality <- intersect(sirs2, icu_mortality.id) #230
+sirs3.icu_mortality <- intersect(sirs3, icu_mortality.id) #351
+sirs4.icu_mortality <- intersect(sirs4, icu_mortality.id) #1258
+sirs234.icu_mortality <- intersect(sirs234, icu_mortality.id) #1839
+
+length(sirs1.icu_mortality) / length(sirs1)
+length(sirs2.icu_mortality) / length(sirs2)
+length(sirs3.icu_mortality) / length(sirs3)
+length(sirs4.icu_mortality) / length(sirs4)
+length(sirs234.icu_mortality) / length(sirs234)
+
+length(sirs1.hosp_mortality) / length(sirs1.id2)
+length(sirs2.hosp_mortality) / length(sirs2.id2)
+length(sirs3.hosp_mortality) / length(sirs3.id2)
+length(sirs4.hosp_mortality) / length(sirs4.id2)
+length(sirs234.hosp_mortality) / length(sirs234.id2)
 
 
 #===========================HIV and severe sepsis==========================
@@ -644,8 +691,68 @@ length(HIVid.df6.mortality30.id)
 length(HIVid.df6.mortality30.id)/length(HIVid.df6)
 
 
+#=====================analyze the prevalence of infections in HIV & Sepsis patients=======================
+HIVinfect <- read.csv('HIV_infections.csv', header = T)
+HIVinfect$id <- paste(HIVinfect$subject_id, HIVinfect$hospital_seq, sep='#%#')
+HIVinfect$code <- as.character(HIVinfect$code)
+head(HIVinfect)
+
+HIVinfect.hosp <- data.frame(HIVinfect$id, HIVinfect$code, HIVinfect$description)
+names(HIVinfect.hosp) <- c('id', 'code', 'description')
+length(unique(HIVinfect.hosp$code))
+counts <- as.data.frame(table(HIVinfect.hosp$code))
+counts.2 <- counts[order(counts$Freq, decreasing = T),]
+barplot(counts.2$Freq, ylim = c(0,60), main = 'Prevelance of Infections among HIV Patients')
+counts.2$rate <- counts.2$Freq / length(HIVicd9.id0)
+HIVinfect.hosp[HIVinfect.hosp$code=='112.5',]
 
 
 
+HIVid.df1.id2.df <- data.frame(HIVid.df1.id2)
+names(HIVid.df1.id2.df) <- c('id')
+HIVinfect.hosp.df1 <- merge(HIVid.df1.id2.df, HIVinfect.hosp, by.x = 'id', by.y = 'id', all.x = T)
+counts.df1 <- as.data.frame(table(HIVinfect.hosp.df1$code))
+counts.df1.2 <- counts.df1[order(counts.df1$Freq, decreasing = T),]
+barplot(counts.df1.2$Freq, ylim = c(0,10),main = 'Prevelance of Infections among HIV & Severe Sepsis Patients (df1)')
+counts.df1.2$rate <- counts.df1.2$Freq / length(HIVid.df1.id2)
+
+HIVid.df2.id2.df <- data.frame(HIVid.df2.id2)
+names(HIVid.df2.id2.df) <- c('id')
+HIVinfect.hosp.df2 <- merge(HIVid.df2.id2.df, HIVinfect.hosp, by.x = 'id', by.y = 'id', all.x = T)
+counts.df2 <- as.data.frame(table(HIVinfect.hosp.df2$code))
+counts.df2.2 <- counts.df2[order(counts.df2$Freq, decreasing = T),]
+barplot(counts.df2.2$Freq, ylim = c(0,40),main = 'Prevelance of Infections among HIV & Severe Sepsis Patients')
+counts.df2.2$rate <- counts.df2.2$Freq / length(HIVid.df2.id2)
 
 
+HIVid.df3.id2.df <- data.frame(HIVid.df3.id2)
+names(HIVid.df3.id2.df) <- c('id')
+HIVinfect.hosp.df3 <- merge(HIVid.df3.id2.df, HIVinfect.hosp, by.x = 'id', by.y = 'id', all.x = T)
+counts.df3 <- as.data.frame(table(HIVinfect.hosp.df3$code))
+counts.df3.2 <- counts.df3[order(counts.df3$Freq, decreasing = T),]
+barplot(counts.df3.2$Freq, ylim = c(0,10),main = 'Prevelance of Infections among HIV & Severe Sepsis Patients (df3)')
+counts.df3.2$rate <- counts.df3.2$Freq / length(HIVid.df3.id2)
+
+HIVid.df4.id2.df <- data.frame(HIVid.df4.id2)
+names(HIVid.df4.id2.df) <- c('id')
+HIVinfect.hosp.df4 <- merge(HIVid.df4.id2.df, HIVinfect.hosp, by.x = 'id', by.y = 'id', all.x = T)
+counts.df4 <- as.data.frame(table(HIVinfect.hosp.df4$code))
+counts.df4.2 <- counts.df4[order(counts.df4$Freq, decreasing = T),]
+barplot(counts.df4.2$Freq, ylim = c(0,10),main = 'Prevelance of Infections among HIV & Severe Sepsis Patients (df4)')
+counts.df4.2$rate <- counts.df4.2$Freq / length(HIVid.df4.id2)
+
+HIVid.df5.id2.df <- data.frame(HIVid.df5.id2)
+names(HIVid.df5.id2.df) <- c('id')
+HIVinfect.hosp.df5 <- merge(HIVid.df5.id2.df, HIVinfect.hosp, by.x = 'id', by.y = 'id', all.x = T)
+counts.df5 <- as.data.frame(table(HIVinfect.hosp.df5$code))
+counts.df5.2 <- counts.df5[order(counts.df5$Freq, decreasing = T),]
+barplot(counts.df5.2$Freq, ylim = c(0,10),main = 'Prevelance of Infections among HIV & Severe Sepsis Patients (df5)')
+counts.df5.2$rate <- counts.df5.2$Freq / length(HIVid.df5.id2)
+
+HIVid.df6.id2.df <- data.frame(HIVid.df6.id2)
+names(HIVid.df6.id2.df) <- c('id')
+HIVinfect.hosp.df6 <- merge(HIVid.df6.id2.df, HIVinfect.hosp, by.x = 'id', by.y = 'id', all.x = T)
+counts.df6 <- as.data.frame(table(HIVinfect.hosp.df6$code))
+counts.df6.2 <- counts.df6[order(counts.df6$Freq, decreasing = T),]
+barplot(counts.df6.2$Freq, ylim = c(0,10),main = 'Prevelance of Infections among HIV & Severe Sepsis Patients (df6)')
+counts.df6.2$rate <- counts.df6.2$Freq / length(HIVid.df6.id2)
