@@ -409,13 +409,14 @@ icu_nonmortality <- mortalityinfos2[!is.na(mortalityinfos2$icustay_expire_flg) &
 icu_mortality.id <- unique(icu_mortality$id) # 2,026
 icu_nonmortality.id <- unique(icu_nonmortality$id) #22,174
 
+load('severe.sepsis.timeofevent.RData')
 df1.timeofevent <- severe.sepsis.timeofevent
 df1.mortality30 <- merge(df1.timeofevent, mortalityinfos2, by.x = 'id', by.y = 'id', all.x = T)
 df1.mortality30 <- df1.mortality30[!is.na(df1.mortality30$dod),]
-head(df1.mortality30)
+str(df1.mortality30)
 df1.mortality30.id <- c()
 for (i in 1:nrow(df1.mortality30)) 
-  if (difftime(df1.mortality30$dod[i], df1.mortality30$time.event[i], units="hours") < 30*24) {
+  if (!is.na(df1.mortality30$dod[i]) & difftime(df1.mortality30$dod[i], df1.mortality30$time.event[i], units="hours") < 30*24) {
     df1.mortality30.id <- c(df1.mortality30.id, as.character(df1.mortality30$id[i]))
   }
 
@@ -558,8 +559,8 @@ HIVicd9$id0 <- paste(HIVicd9$subject_id, HIVicd9$hospital_seq, sep='#%#')
 HIVicd9.id <- unique(HIVicd9$id) #404
 HIVicd9.id0 <- unique(HIVicd9$id0) #376
 HIVicd9.id00 <- unique(HIVicd9$subject_id) #308
-# HIVtests <- read.csv('HIVtests.csv', header = T)
-# HIVtests$id <- paste(HIVtests$subject_id, HIVtests$hospital_seq, HIVtests$icustay_seq, sep='#%#')
+HIVtests <- read.csv('HIVtests.csv', header = T)
+HIVtests$id <- paste(HIVtests$subject_id, HIVtests$hospital_seq, HIVtests$icustay_seq, sep='#%#')
 # HIVtests1 <- HIVtests[HIVtests$itemid==50356 & (HIVtests$valuenum > 15 | HIVtests$valuenum < 6), ]
 # HIVtests1.id <- unique(HIVtests1$id) #96
 
