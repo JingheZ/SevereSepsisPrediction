@@ -25,9 +25,10 @@ names(antibiotics2) <- c('id', 'start_time', 'stop_time', 'itemid')
 antibiotics2 <- antibiotics2[(antibiotics2$itemid != 'Meropenem Desensitization') & (antibiotics2$itemid != 'Hepatitis B Immune Globulin (Nabi-HB)'), ]
 #merge antibiotics with severe sepsis time
 antibiotics3 <- merge(antibiotics2, sepsis.time, by.x = 'id', by.y = 'id', all.x = T, all.y = T)
-antibiotics3$start_time <- ymd_hms(antibiotics3$start_time)
-antibiotics3$stop_time <- ymd_hms(antibiotics3$stop_time)
+# antibiotics3$start_time <- ymd_hms(antibiotics3$start_time)
+# antibiotics3$stop_time <- ymd_hms(antibiotics3$stop_time)
 antibiotics3$dftime <- difftime(antibiotics3$start_time, antibiotics3$event.time, units = 'hours')
+head(antibiotics3)
 length(unique(antibiotics3$itemid))
 length(unique(antibiotics3$id))
 #to get patients who had antibiotics before time of event
@@ -135,7 +136,7 @@ abtimes <- ddply(antibiotics4, .(id), abtiming)
 names(abtimes) <- c('id', 'first.abtime', 'firstafterevent.abtime')
 save(abtimes, file = 'abtimes.RData')
 
-
+load('abtimes.RData')
 #plot the time of antibiotics over the entire ICU stay
 # stat_density(mapping = NULL, data = NULL, geom = "area", position = "stack", adjust = 1, 
 #              kernel = "gaussian", trim = FALSE, na.rm = FALSE)
@@ -286,7 +287,7 @@ lactate.clear3 <- lactate.clear3[order(lactate.clear3$id, lactate.clear3$lactate
 lactateclearance <- ddply(lactate.clear3, .(id), computeLactateClear)
 names(lactateclearance) <- c('id', 'initial.lactate', 'cleartime', 'normalizetime', 'lastlactate.dftime', 'cleartime0', 'normalizetime0')
 save(lactateclearance, file = 'lactateclearance.RData')
-
+load('lactateclearance.RData')
 #number of patients with 10% cleared lactate
 length(lactateclearance$cleartime[!is.na(lactateclearance$cleartime)]) # 1091
 #number of patients with normalized lactate
@@ -374,6 +375,8 @@ antibiotics5.lactate.3 <- data.frame(antibiotics5.lactate.2$id, antibiotics5.lac
 
 names(antibiotics5.lactate.3) <- c('id', 'itemid', 'charttime', 'stop_time', 'valuenum', 'sepsis.time', 'cleartime', 'normalize_time', 'antibiotic_name0')
 
+save(antibiotics5, file = 'antibiotics5.RData')
+load('antibiotics5.RData')
 #=================================================10% lactate clearance===========================================================================================
 #remove the antibiotics given after 10% decrease
 antibiotics5a <- antibiotics5[(is.na(antibiotics5$cleartime)) | ((!is.na(antibiotics5$cleartime)) & (antibiotics5$dftime < antibiotics5$cleartime)), ]
@@ -405,8 +408,21 @@ antibiotics5b <- antibiotics5b[!is.na(antibiotics5b$id),]
 length(unique(antibiotics5b$id))
 #686   
 
+names(antibiotics5b)
+antibiotics5b <- antibiotics5b[order(antibiotics5b$id, antibiotics5b$dftime),]
+
+firstabx <- function(data) {
+  abx1 <- data[1,]
+  return(abx1)
+}
+antibiotics5b.2 <- ddply(antibiotics5b, .(id), firstabx)
+antibiotics5b.3 <- antibiotics5b.2[!is.na(antibiotics5b.2$dftime) & antibiotics5b.2$dftime >= 0,]
+save(antibiotics5b.3, file = 'antibiotics5b.3.RData')
+antibiotics5b3.ids <- as.character(antibiotics5b.3$id)
+
+antibiotics5b.4 <- antibiotics5b[antibiotics5b$id %in% antibiotics5b3.ids,]
 #aggregate to counts by ptid by antibiotic category
-antibiotics5b.count <- count(antibiotics5b, c('id', 'itemidG'))
+antibiotics5b.count <- count(antibiotics5b.4, c('id', 'itemidG'))
 str(antibiotics5b.count)
 unique(antibiotics5b.count$id)
 
@@ -414,7 +430,12 @@ unique(antibiotics5b.count$id)
 antibiotics5b.count.noNA <- antibiotics5b.count[!is.na(antibiotics5b.count$itemidG),-3]
 antibiotics5b.numab.count <- count(antibiotics5b.count.noNA, 'id')
 length(unique(antibiotics5b.numab.count$id)) #614
-
+#get only the patients who had the first abx after the event
+antibiotics5b.2a <- data.frame(antibiotics5b.2$id, antibiotics5b.2$itemidG, antibiotics5b.2$dftime)
+names(antibiotics5b.2a) <- c('id', 'itemidG', 'dftime')
+# the abx info of patients who had the first abx after the event
+pts.firstabx <- merge(antibiotics5b.numab.count, antibiotics5b.2a, by.x = 'id', by.y = 'id', all.x= T)
+save(pts.firstabx, file = 'pts.firstabx.RData')
 
 #patients with antibiotics before 10% lactate clearance
 pts.b.ab <- unique(antibiotics5b.numab.count$id) 
@@ -637,7 +658,6 @@ lactateclearance.ab2 <- lactateclearance.ab[(lactateclearance.ab$id != '25012#%#
 # 
 # surv.by.numab <- npsurv(survObj ~ drugab, data = lactateclearance.ab2, conf.type = "log-log")
 
-
 #survival analysis by abx given or not before clearance
 survab <- survfit(Surv(time, censor) ~ drugab, data = lactateclearance.ab2)
 print(survab)
@@ -671,9 +691,18 @@ print(survab.time)
 plot(survab.time, lty=c(1,1,1,1,5,6,6), col = c('red', 'green', 'black', 'blue','orange', 'purple', 'brown'), xlab="Time", ylab="Lactate Clearance Probability", fun = 'event')
 legend(200, 0.5, c('[-2000,-12)', '[-12, -6)', '[-6,0)', '[0,3)','[3,6)', '[6,1000)', 'No ABX' ), lty=c(1,1,1,1,5,6), col = c('red', 'green', 'black', 'blue','orange', 'purple', 'brown')) 
 
-
 names(lactateclearanceB.abtime2)
 names(lactateclearanceA)
+
+
+#==to remove patients with first antibiotics before severe sepsis
+firstab.time <- cut(lactateclearanceAB.abtime2$first.abtime, c(0, 3, 6, 1000, 10000), right = F)
+survab.time <- survfit(Surv(time, censor) ~ firstab.time, data = lactateclearanceAB.abtime2)
+print(survab.time)
+plot(survab.time, lty=c(1,1,5,6), col = c('red', 'green', 'black', 'blue'), xlab="Time", ylab="Lactate Clearance Probability", fun = 'event')
+legend(150, 0.5, c('[0,3)','[3,6)', '[6,1000)', 'No ABX' ), lty=c(1,1,5,6), col = c('red', 'green', 'black', 'blue')) 
+
+
 
 pts.b.ab1 <- lactateclearanceAB.abtime2$id[lactateclearanceAB.abtime2$first.abtime > -1000 & lactateclearanceAB.abtime2$first.abtime < -12 ]
 pts.b.ab2 <- lactateclearanceAB.abtime2$id[lactateclearanceAB.abtime2$first.abtime >= -12 & lactateclearanceAB.abtime2$first.abtime < -6]
@@ -844,12 +873,9 @@ ggplot(pts.b.ab.scores, aes(x=sofa_first, colour=ab2)) +
 
 
 
-
-
-
-
 #================================================= lactate normalization===========================================================================================
-#remove the antibiotics given after lactate normalization
+#keep the antibiotics given after sepsis and before lactate normalization
+load('antibiotics5.RData')
 antibiotics5a <- antibiotics5[(is.na(antibiotics5$normalizetime)) | ((!is.na(antibiotics5$normalizetime)) & (antibiotics5$dftime < antibiotics5$normalizetime)), ]
 antibiotics5a <- antibiotics5a[!is.na(antibiotics5a$id),]
 length(unique(antibiotics5a$id))
@@ -887,6 +913,39 @@ unique(antibiotics5b.count$id)
 antibiotics5b.count.noNA <- antibiotics5b.count[!is.na(antibiotics5b.count$itemidG),-3]
 antibiotics5b.numab.count <- count(antibiotics5b.count.noNA, 'id')
 length(unique(antibiotics5b.numab.count$id)) #888
+
+
+names(antibiotics5b)
+antibiotics5b <- antibiotics5b[order(antibiotics5b$id, antibiotics5b$dftime),]
+
+firstabx <- function(data) {
+  abx1 <- data[1,]
+  return(abx1)
+}
+antibiotics5b.2 <- ddply(antibiotics5b, .(id), firstabx)
+antibiotics5b.3 <- antibiotics5b.2[!is.na(antibiotics5b.2$dftime) & antibiotics5b.2$dftime >= 0,]
+save(antibiotics5b.3, file = 'antibiotics5b.3.normalize.RData')
+antibiotics5b3.ids <- as.character(antibiotics5b.3$id)
+
+antibiotics5b.4 <- antibiotics5b[antibiotics5b$id %in% antibiotics5b3.ids,]
+#aggregate to counts by ptid by antibiotic category
+antibiotics5b.count <- count(antibiotics5b.4, c('id', 'itemidG'))
+str(antibiotics5b.count)
+unique(antibiotics5b.count$id)
+
+#further aggregate to get patients with antibiotics
+antibiotics5b.count.noNA <- antibiotics5b.count[!is.na(antibiotics5b.count$itemidG),-3]
+antibiotics5b.numab.count <- count(antibiotics5b.count.noNA, 'id')
+length(unique(antibiotics5b.numab.count$id)) #614
+#get only the patients who had the first abx after the event
+antibiotics5b.2a <- data.frame(antibiotics5b.2$id, antibiotics5b.2$itemidG, antibiotics5b.2$dftime)
+names(antibiotics5b.2a) <- c('id', 'itemidG', 'dftime')
+# the abx info of patients who had the first abx after the event
+pts.firstabx <- merge(antibiotics5b.numab.count, antibiotics5b.2a, by.x = 'id', by.y = 'id', all.x= T)
+save(pts.firstabx, file = 'pts.firstabx.normalize.RData')
+
+
+
 
 
 #patients with antibiotics before lactate normalization and after developed severe sepsis
@@ -986,6 +1045,15 @@ survab.time <- survfit(Surv(time, censor) ~ firstab.time, data = lactateclearanc
 print(survab.time)
 plot(survab.time, lty=c(1,1,1,1,5,6,6), col = c('red', 'green', 'black', 'blue','orange', 'purple', 'brown'), xlab="Time", ylab="Lactate Normalization Probability", fun = 'event')
 legend(200, 0.5, c('[-2000,-12)', '[-12, -6)', '[-6,0)', '[0,3)','[3,6)', '[6,1000)', 'No ABX' ), lty=c(1,1,1,1,5,6), col = c('red', 'green', 'black', 'blue','orange', 'purple', 'brown')) 
+
+# to remove patients with antibiotics before the event
+summary(lactateclearanceAB.abtime2$time)
+firstab.time <- cut(lactateclearanceAB.abtime2$first.abtime, c(0, 3, 6, 1000, 10000), right = F)
+survab.time <- survfit(Surv(time, censor) ~ firstab.time, data = lactateclearanceAB.abtime2)
+print(survab.time)
+plot(survab.time, lty=c(1,1,5,6), col = c('red', 'green', 'black', 'blue'), xlab="Time", ylab="Lactate Normalization Probability", fun = 'event')
+legend(200, 0.5, c('[0,3)','[3,6)', '[6,1000)', 'No ABX' ), lty=c(1,1,5,6), col = c('red', 'green', 'black', 'blue')) 
+
 
 
 dim(lactateclearanceB.abtime2)
