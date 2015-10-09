@@ -253,6 +253,8 @@ dysfunc$id <- paste(dysfunc$subject_id, dysfunc$hospital_seq, dysfunc$icustay_se
 dysfunc.id <- unique(dysfunc$id) #9,051
 
 infectdysfun.id <- intersect(infect.id, dysfunc.id) #5,739
+save(infectdysfun.id, file = 'infectdysfun.id.RData')
+
 
 sofa3 <- read.csv("sofas_byicu.csv", header = T)
 sofa3$id <- paste(sofa3$subject_id, sofa3$hospital_seq, sofa3$icustay_seq, sep='#%#')
@@ -287,7 +289,7 @@ cardiofail.id <- union(cardiofail1.id, lowsystolicBP.id) #12,146
 cardiofail.id <- union(cardiofail.id, lowMAP.id) #17,538
 dysfunc2.id <- union(sofa3.id, cardiofail.id) #19,798
 infectdysfun2.id <- intersect(infect.id, dysfunc2.id) #9,550
- 
+save(infectdysfun2.id, file = 'infectdysfun2.id.RData')
 
 # Patients with severe sepsis by our definition-------
 hlbc.sp.id <- severe.sepsis.pt #1,143
