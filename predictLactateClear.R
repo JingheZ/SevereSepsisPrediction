@@ -202,6 +202,7 @@ names(data.7)
 library(DMwR)
 table(data.7$response)
 names(data.7)
+summary(data.7)
 data.7$id <- as.character(data.7$id)
 data.8 <- knnImputation(data.7[,-c(1,70,71)], k=50, scale=T, meth="weighAvg")
 
@@ -218,25 +219,360 @@ write.csv(data.8, file = 'data_lactate_clearance_predicton_df1.csv', row.names =
 load('data.8.RData')
 
 
-
-#===================Cox Proportional Hazards Model======================================
+#=====Cox Proportional Hazards Model======
 library(survival)
-names(data.8)
-coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = data.8[,-1])
-summary(coxph_lactate.clear)
 
-# #===================logistic regression Model======================================
+names(data.8)
+summary(data.8[data.8$response==0,])
+stds0 <- apply(data.8[data.8$response==0,-c(69, 74,75,76)], 2, sd)
+
+summary(data.8[data.8$response==1,])
+stds1 <- apply(data.8[data.8$response==1,-c(69, 74,75,76)], 2, sd)
+
+par(mfrow=c(2,2))
+boxplot(data.8[data.8$`198_v3`])
+boxplot(data.8$exit.time)
+
+data.8 <- data.8[data.8$gender != '',]
+str(data.8)
+
+boxplot(data.8$age)
+summary(data.8$age)
+
+boxplot(data.8$`678_v1`)
+boxplot(data.8$`678_v2`)
+boxplot(data.8$`678_v3`)
+
+# select the patients with cleared lactate
+data.8.2 <- data.8[(data.8$exit.time < 1000) & (data.8$age < 200) & (data.8$`678_v1` >50) & (data.8$`678_v2` >50) & (data.8$`678_v3` >50),]
+
+boxplot(data.8.2$exit.time)
+boxplot(data.8.2$age)
+summary(data.8.2$age)
+
+boxplot(data.8.2$`678_v1`)
+boxplot(data.8.2$`678_v2`)
+boxplot(data.8.2$`678_v3`)
+#remove the outlier with extremely large exit.time
+data.8.3 <- data.8.2[data.8.2$response == 1,]
+boxplot(data.8.3$exit.time)
+
+source("../R Codes/SPM_Panel-1.R")
+uva.pairs("  ~  `198_v3` + `678_v3` + `211_v3` + `618_v3` + `455_v3` + `4552_v3` + `50002_v3` + `50015_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.8.3,  labels = c('GCS', 'Temp', 'Pulse', 'Resp.', 'Systolic BP', 'Diastolic BP', 'Base Excess', 'Oxygen Saturation', 'exit.time'))
+
+uva.pairs(" ~  `50019_v3` + `50018_v3` + `50016_v3` + `50439_v3` + `50460_v3` + `50149_v3` + `50159_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.8.3,  labels = c('PO_2', 'pH Arterial', 'PCO_2', 'Protime', 'Partial Thromboplastin Time', 'Potassium', 'Sodium', 'exit.time'))
+
+uva.pairs(" ~  `age` + `initial.lactate` + `score` + `sapsi_first` + `sofa_first` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.8.3,  labels = c('age', 'initial.lactate', 'score', 'sapsi_first', 'spfa_first', 'exit.time'))
+
+# install.packages('caret')
+# center and scale the independent variables
+# library(caret)
+# names(data.8.2)
+# preProcValues <- preProcess(data.8.2[, -c(69, 74:76)], method=c("center", "scale"))
+# data.8.4 <- predict(preProcValues, data.8.2[, -c(69, 74:76)])
+# data.8.4 <- cbind(data.8.4, data.8.2[, c(69, 74:76)])
+# data.8.5 <- data.8.4[data.8.4$response == 1,]
+# 
+# uva.pairs("  ~  `198_v3` + `678_v3` + `211_v3` + `618_v3` + `455_v3` + `4552_v3` + `50002_v3` + `50015_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.8.5,  labels = c('GCS', 'Temp', 'Pulse', 'Resp.', 'Systolic BP', 'Diastolic BP', 'Base Excess', 'Oxygen Saturation', 'exit.time'))
+# 
+# uva.pairs(" ~  `50019_v3` + `50018_v3` + `50016_v3` + `50439_v3` + `50460_v3` + `50149_v3` + `50159_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.8.5,  labels = c('PO_2', 'pH Arterial', 'PCO_2', 'Protime', 'Partial Thromboplastin Time', 'Potassium', 'Sodium', 'exit.time'))
+# 
+# uva.pairs(" ~  `age` + `initial.lactate` + `score` + `sapsi_first` + `sofa_first` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.8.5,  labels = c('age', 'initial.lactate', 'score', 'sapsi_first', 'spfa_first', 'exit.time'))
+
+
+
+
+# data.9 <- data.8.2[,-74]
+load('abtimes.RData')
+# select the patients who had never had abx in the entire stay
+abtimes.noabx <- abtimes[is.na(abtimes$first.abtime), ]
+
+
+load('pts.firstabx.RData')
+names(pts.firstabx)
+# patients with antibiotics the time of antibiotics
+data.9A <- merge(data.8.2, pts.firstabx, by.x = 'id', by.y= 'id') 
+# patients without abx
+data.9B <- data.8.2[data.8.2$id %in% abtimes.noabx$id, ] 
+
+# coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = data.9[,-74])
+# summary(coxph_lactate.clear)
+# tab <- summary(coxph_lactate.clear)
+# # install.packages('stargazer')
+# library(stargazer)
+# exp.coef <- exp(coxph_lactate.clear$coef)
+# CI.vector <- exp(confint(coxph_lactate.clear))
+# stargazer(coxph_lactate.clear, coef=list(exp.coef), single.row=T, ci=T, ci.custom=list(CI.vector))
+# 
+# boxplot(data.9$`50018_v32`)
+
+# time.dep.zph <- cox.zph(coxph_lactate.clear, transform = 'log')
+# time.dep.zph
+# plot(time.dep.zph[3])
+# abline(h=0, lty=3)
+# plot(time.dep.zph[5])
+#=====logistic regression Model===========
 # data.6$response <- as.factor(data.6$response)
 # lr_lactate.clear <- glm(response ~ ., data = data.6[,-c(1, 70)], family = 'binomial')
 # summary(lr_lactate.clear)
 
 
-library(cvTools)
-set.seed(12345)
-cvs <- cvFolds(nrow(data.6), K = 5, type = 'random')
-for (i in 1:nfold) {
-  testindex <- cvs$subsets[cvs$which==i]
-  data.test <- data.6[testindex,]
-  data.train <- data.6[-testindex,]
-  
-}
+#=========cross validation================
+# library(cvTools)
+# set.seed(12345)
+# cvs <- cvFolds(nrow(data.6), K = 5, type = 'random')
+# for (i in 1:nfold) {
+#   testindex <- cvs$subsets[cvs$which==i]
+#   data.test <- data.6[testindex,]
+#   data.train <- data.6[-testindex,]
+#   
+# }
+
+# ================Cox Proportional Regression Modeling =============================================
+library(survival)
+data.9 <- data.8.2
+set.seed(10)
+data.10 <- data.9[sample(nrow(data.9)),]
+train <- data.10[c(1:952),]
+test <- data.10[c(953:nrow(data.10)),]
+names(train)
+
+coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = train[,-74])
+summary(coxph_lactate.clear)
+tab <- summary(coxph_lactate.clear)
+# install.packages('stargazer')
+library(stargazer)
+exp.coef <- exp(coxph_lactate.clear$coef)
+CI.vector <- exp(confint(coxph_lactate.clear))
+stargazer(coxph_lactate.clear, coef=list(exp.coef), single.row=T, ci=T, ci.custom=list(CI.vector))
+
+# install.packages('pec')
+library('pec')
+psurv <- data.frame(predictSurvProb(coxph_lactate.clear,newdata=test,times=seq(6,24,6)))
+names(psurv) <- c('0~6hr', '6~12hr', '12~18hr', '18~24hr')
+psurv
+
+
+psurv.2 <- data.frame(apply(psurv, 2, function(x) 1-x))
+
+psurv.2$moretime <- 1 - psurv.2[,4]
+psurv.2 <- data.frame(psurv.2)
+names(psurv.2) <- c('0~6hr', '0~12hr', '0~18hr', '0~24hr', 'noclear_in_24hrs')
+timeranges <- c('0~6hr', '6~12hr', '12~18hr', '18~24hr', 'noclear_in_24hrs')
+
+psurv.2$A <- psurv.2[,2] - psurv.2[,1]
+psurv.2$B <- psurv.2[,3] - psurv.2[,2]
+psurv.2$C <- psurv.2[,4] - psurv.2[,3]
+psurv.3 <- data.frame(psurv.2$`0~6hr`, psurv.2$A, psurv.2$B, psurv.2$C, psurv.2$noclear_in_24hrs)
+names(psurv.3) <- timeranges
+
+psurv.2$possibletime <- apply(psurv.3, 1, function(x) timeranges[which.max(x)])
+psurv.2$A <- NULL
+psurv.2$B <- NULL
+psurv.2$C <- NULL
+truth.test <- data.9[rownames(psurv.2),c('exit.time', 'response')]
+psurv.2$exittime <- truth.test$exit.time
+psurv.2$response <- truth.test$response
+psurv.2 <- data.frame(psurv.2)
+names(psurv.2) <- c('0~6hr', '0~12hr', '0~18hr', '0~24hr', 'noclear_in_24hrs', 'predictTime', 'exittime', 'response')
+psurv.2$response <- as.character(psurv.2$response)
+str(psurv.2)
+
+library(xtable)
+psurv.xtable <- xtable(psurv.2)
+toLatex(psurv.xtable, digits=3)
+
+
+
+plot(survfit(coxph_lactate.clear, newdata=test[c(1,2,5,6),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
+
+legend(40, 0.3, c('Pt1','Pt2', 'Pt3', 'Pt4'), lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green')) 
+
+names(test[c(1,2,5,6),])
+col_selected <- c(3,8,13,18,23,28,68:75,33,36,39,44,49,53,56,60,65)
+examplepts <- xtable(test[c(1,2,5,6),col_selected])
+toLatex(examplepts, digits=3)
+
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[c(1:7, 10, 11)]])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[15:length(col_selected)]])
+toLatex(examplepts, digits=3)
+
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[c(8,9,12,13,14)]])
+toLatex(examplepts, digits=3)
+
+
+#======================For patients with antibiotics=========================
+names(data.9A)
+uva.pairs("  ~  `198_v3` + `678_v3` + `211_v3` + `618_v3` + `455_v3` + `4552_v3` + `50002_v3` + `50015_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.9A,  labels = c('GCS', 'Temp', 'Pulse', 'Resp.', 'Systolic BP', 'Diastolic BP', 'Base Excess', 'Oxygen Saturation', 'exit.time'))
+
+uva.pairs(" ~  `50019_v3` + `50018_v3` + `50016_v3` + `50439_v3` + `50460_v3` + `50149_v3` + `50159_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.9A,  labels = c('PO_2', 'pH Arterial', 'PCO_2', 'Protime', 'Partial Thromboplastin Time', 'Potassium', 'Sodium', 'exit.time'))
+
+uva.pairs(" ~  `age` + `initial.lactate` + `score` + `sapsi_first` + `sofa_first` + `freq` + `itemidG` + `dftime` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.9A,  labels = c('age', 'initial.lactate', 'score', 'sapsi_first', 'spfa_first', 'ABX types', 'firstABX', 'ABX timing', 'exit.time'))
+
+
+library(survival)
+data.9 <- data.9A
+set.seed(10)
+data.10 <- data.9[sample(nrow(data.9)),]
+train <- data.10[c(1:351),]
+test <- data.10[c(352:nrow(data.10)),]
+names(train)
+
+coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = train[,-1])
+summary(coxph_lactate.clear)
+tab <- summary(coxph_lactate.clear)
+# install.packages('stargazer')
+library(stargazer)
+exp.coef <- exp(coxph_lactate.clear$coef)
+CI.vector <- exp(confint(coxph_lactate.clear))
+stargazer(coxph_lactate.clear, coef=list(exp.coef), single.row=T, ci=T, ci.custom=list(CI.vector))
+
+# install.packages('pec')
+library('pec')
+psurv <- data.frame(predictSurvProb(coxph_lactate.clear,newdata=test,times=seq(6,24,6)))
+names(psurv) <- c('0~6hr', '6~12hr', '12~18hr', '18~24hr')
+psurv
+
+
+psurv.2 <- data.frame(apply(psurv, 2, function(x) 1-x))
+
+psurv.2$moretime <- 1 - psurv.2[,4]
+psurv.2 <- data.frame(psurv.2)
+names(psurv.2) <- c('0~6hr', '0~12hr', '0~18hr', '0~24hr', 'noclear_in_24hrs')
+timeranges <- c('0~6hr', '6~12hr', '12~18hr', '18~24hr', 'noclear_in_24hrs')
+
+psurv.2$A <- psurv.2[,2] - psurv.2[,1]
+psurv.2$B <- psurv.2[,3] - psurv.2[,2]
+psurv.2$C <- psurv.2[,4] - psurv.2[,3]
+psurv.3 <- data.frame(psurv.2$`0~6hr`, psurv.2$A, psurv.2$B, psurv.2$C, psurv.2$noclear_in_24hrs)
+names(psurv.3) <- timeranges
+
+psurv.2$possibletime <- apply(psurv.3, 1, function(x) timeranges[which.max(x)])
+psurv.2$A <- NULL
+psurv.2$B <- NULL
+psurv.2$C <- NULL
+truth.test <- data.9[rownames(psurv.2),c('exit.time', 'response')]
+psurv.2$exittime <- truth.test$exit.time
+psurv.2$response <- truth.test$response
+psurv.2 <- data.frame(psurv.2)
+names(psurv.2) <- c('0~6hr', '0~12hr', '0~18hr', '0~24hr', 'noclear_in_24hrs', 'predictTime', 'exittime', 'response')
+psurv.2$response <- as.character(psurv.2$response)
+str(psurv.2)
+
+library(xtable)
+psurv.xtable <- xtable(psurv.2)
+toLatex(psurv.xtable, digits=3)
+
+
+
+plot(survfit(coxph_lactate.clear, newdata=test[c(1,2,5,6),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
+
+legend(50, 0.5, c('Pt1','Pt2', 'Pt3', 'Pt4'), lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green')) 
+
+names(test[c(1,2,5,6),])
+col_selected <- c(3,8,13,18,23,28,68:75,33,36,39,44,49,53,56,60,65)
+examplepts <- xtable(test[c(1,2,5,6),col_selected])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[c(1:7, 10, 11)]])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[15:length(col_selected)]])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[c(8,9,12,13,14)]])
+toLatex(examplepts, digits=3)
+
+
+#======================For patients who had no antibiotics during the stay=========================
+names(data.9B)
+uva.pairs("  ~  `198_v3` + `678_v3` + `211_v3` + `618_v3` + `455_v3` + `4552_v3` + `50002_v3` + `50015_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.9B,  labels = c('GCS', 'Temp', 'Pulse', 'Resp.', 'Systolic BP', 'Diastolic BP', 'Base Excess', 'Oxygen Saturation', 'exit.time'))
+
+uva.pairs(" ~  `50019_v3` + `50018_v3` + `50016_v3` + `50439_v3` + `50460_v3` + `50149_v3` + `50159_v3` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.9B,  labels = c('PO_2', 'pH Arterial', 'PCO_2', 'Protime', 'Partial Thromboplastin Time', 'Potassium', 'Sodium', 'exit.time'))
+
+uva.pairs(" ~  `age` + `initial.lactate` + `score` + `sapsi_first` + `sofa_first` + exit.time", main = "Scatter Plot Matrix for Lactate Clearance", data = data.9B,  labels = c('age', 'initial.lactate', 'score', 'sapsi_first', 'spfa_first', 'exit.time'))
+
+
+library(survival)
+data.9 <- data.9B
+set.seed(10)
+data.10 <- data.9[sample(nrow(data.9)),]
+train <- data.10[c(1:148),]
+test <- data.10[c(149:nrow(data.10)),]
+names(train)
+
+coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = train[,-74])
+summary(coxph_lactate.clear)
+tab <- summary(coxph_lactate.clear)
+# install.packages('stargazer')
+library(stargazer)
+exp.coef <- exp(coxph_lactate.clear$coef)
+CI.vector <- exp(confint(coxph_lactate.clear))
+stargazer(coxph_lactate.clear, coef=list(exp.coef), single.row=T, ci=T, ci.custom=list(CI.vector))
+
+# install.packages('pec')
+library('pec')
+psurv <- data.frame(predictSurvProb(coxph_lactate.clear,newdata=test,times=seq(6,24,6)))
+names(psurv) <- c('0~6hr', '6~12hr', '12~18hr', '18~24hr')
+psurv
+
+
+psurv.2 <- data.frame(apply(psurv, 2, function(x) 1-x))
+
+psurv.2$moretime <- 1 - psurv.2[,4]
+psurv.2 <- data.frame(psurv.2)
+names(psurv.2) <- c('0~6hr', '0~12hr', '0~18hr', '0~24hr', 'noclear_in_24hrs')
+timeranges <- c('0~6hr', '6~12hr', '12~18hr', '18~24hr', 'noclear_in_24hrs')
+
+psurv.2$A <- psurv.2[,2] - psurv.2[,1]
+psurv.2$B <- psurv.2[,3] - psurv.2[,2]
+psurv.2$C <- psurv.2[,4] - psurv.2[,3]
+psurv.3 <- data.frame(psurv.2$`0~6hr`, psurv.2$A, psurv.2$B, psurv.2$C, psurv.2$noclear_in_24hrs)
+names(psurv.3) <- timeranges
+
+psurv.2$possibletime <- apply(psurv.3, 1, function(x) timeranges[which.max(x)])
+psurv.2$A <- NULL
+psurv.2$B <- NULL
+psurv.2$C <- NULL
+truth.test <- data.9[rownames(psurv.2),c('exit.time', 'response')]
+psurv.2$exittime <- truth.test$exit.time
+psurv.2$response <- truth.test$response
+psurv.2 <- data.frame(psurv.2)
+names(psurv.2) <- c('0~6hr', '0~12hr', '0~18hr', '0~24hr', 'noclear_in_24hrs', 'predictTime', 'exittime', 'response')
+psurv.2$response <- as.character(psurv.2$response)
+str(psurv.2)
+
+library(xtable)
+psurv.xtable <- xtable(psurv.2)
+toLatex(psurv.xtable, digits=3)
+
+
+
+plot(survfit(coxph_lactate.clear, newdata=test[c(1,2,5,6),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
+
+legend(50, 0.5, c('Pt1','Pt2', 'Pt3', 'Pt4'), lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green')) 
+
+names(test[c(1,2,5,6),])
+col_selected <- c(3,8,13,18,23,28,68:75,33,36,39,44,49,53,56,60,65)
+examplepts <- xtable(test[c(1,2,5,6),col_selected])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[c(1:7, 10, 11)]])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[15:length(col_selected)]])
+toLatex(examplepts, digits=3)
+
+examplepts <- xtable(test[c(1,2,5,6),col_selected[c(8,9,12,13,14)]])
+toLatex(examplepts, digits=3)
+
+
+
+
+
+
+
