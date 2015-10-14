@@ -335,7 +335,7 @@ set.seed(10)
 data.10 <- data.9[sample(nrow(data.9)),]
 train <- data.10[c(1:952),]
 test <- data.10[c(953:nrow(data.10)),]
-names(train)
+str(train)
 
 coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = train[,-74])
 summary(coxph_lactate.clear)
@@ -384,24 +384,24 @@ toLatex(psurv.xtable, digits=3)
 
 
 
-plot(survfit(coxph_lactate.clear, newdata=test[c(1,2,5,6),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
+plot(survfit(coxph_lactate.clear, newdata=test[c(2,4,1,nrow(test)),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
 
 legend(40, 0.3, c('Pt1','Pt2', 'Pt3', 'Pt4'), lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green')) 
 
-names(test[c(1,2,5,6),])
-col_selected <- c(3,8,13,18,23,28,68:75,33,36,39,44,49,53,56,60,65)
-examplepts <- xtable(test[c(1,2,5,6),col_selected])
+names(test[c(2,4,1,nrow(test)),])
+col_selected <- c(3,8,13,18,23,28,68:76,33,36,39,44,49,53,56,60,65)
+examplepts <- xtable(test[c(2,4,1,nrow(test)),col_selected])
 toLatex(examplepts, digits=3)
 
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[c(1:7, 10, 11)]])
+examplepts <- xtable(test[c(2,4,1,nrow(test)),col_selected[c(1:7, 10, 11)]])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[15:length(col_selected)]])
+examplepts <- xtable(test[c(2,4,1,nrow(test)),col_selected[15:length(col_selected)]])
 toLatex(examplepts, digits=3)
 
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[c(8,9,12,13,14)]])
+examplepts <- xtable(test[c(2,4,1,nrow(test)),col_selected[c(7,8,9,10,12,14,15)]])
 toLatex(examplepts, digits=3)
 
 
@@ -420,7 +420,7 @@ set.seed(10)
 data.10 <- data.9[sample(nrow(data.9)),]
 train <- data.10[c(1:351),]
 test <- data.10[c(352:nrow(data.10)),]
-names(train)
+name(train)
 
 coxph_lactate.clear <- coxph(Surv(exit.time, response) ~ ., method = 'efron', data = train[,-1])
 summary(coxph_lactate.clear)
@@ -469,22 +469,22 @@ toLatex(psurv.xtable, digits=3)
 
 
 
-plot(survfit(coxph_lactate.clear, newdata=test[c(1,2,5,6),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
+plot(survfit(coxph_lactate.clear, newdata=test[c(3,4,2,1),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
 
 legend(50, 0.5, c('Pt1','Pt2', 'Pt3', 'Pt4'), lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green')) 
 
-names(test[c(1,2,5,6),])
-col_selected <- c(3,8,13,18,23,28,68:75,33,36,39,44,49,53,56,60,65)
-examplepts <- xtable(test[c(1,2,5,6),col_selected])
+names(test[c(3,4,2,1),])
+col_selected <- c(3,8,13,18,23,28,68:79,33,36,39,44,49,53,56,60,65)
+examplepts <- xtable(test[c(3,4,2,1),col_selected])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[c(1:7, 10, 11)]])
+examplepts <- xtable(test[c(3,4,2,1),col_selected[c(1:7, 10, 11)]])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[15:length(col_selected)]])
+examplepts <- xtable(test[c(3,4,2,1),col_selected[15:length(col_selected)]])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[c(8,9,12,13,14)]])
+examplepts <- xtable(test[c(3,4,2,1),col_selected[c(8:11,16,17,18,13,14,15)]])
 toLatex(examplepts, digits=3)
 
 
@@ -552,22 +552,22 @@ toLatex(psurv.xtable, digits=3)
 
 
 
-plot(survfit(coxph_lactate.clear, newdata=test[c(1,2,5,6),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
+plot(survfit(coxph_lactate.clear, newdata=test[c(1,3,4,5),], conf.int=F), fun='event', xmax=72, mark.time=F, lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green'), xlab="Hrs", ylab="Clearance Prob.")
 
 legend(50, 0.5, c('Pt1','Pt2', 'Pt3', 'Pt4'), lty=c(1,1,5,6), col = c('red', 'black', 'blue', 'green')) 
 
-names(test[c(1,2,5,6),])
-col_selected <- c(3,8,13,18,23,28,68:75,33,36,39,44,49,53,56,60,65)
-examplepts <- xtable(test[c(1,2,5,6),col_selected])
+names(test[c(1,3,4,5),])
+col_selected <- c(3,8,13,18,23,28,68:76,33,36,39,44,49,53,56,60,65)
+examplepts <- xtable(test[c(1,3,4,5),col_selected])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[c(1:7, 10, 11)]])
+examplepts <- xtable(test[c(1,3,4,5),col_selected[c(1:7, 10, 11)]])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[15:length(col_selected)]])
+examplepts <- xtable(test[c(1,3,4,5),col_selected[15:length(col_selected)]])
 toLatex(examplepts, digits=3)
 
-examplepts <- xtable(test[c(1,2,5,6),col_selected[c(8,9,12,13,14)]])
+examplepts <- xtable(test[c(2,4,1,nrow(test)),col_selected[c(7,8,9,10,12,14,15)]])
 toLatex(examplepts, digits=3)
 
 
